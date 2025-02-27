@@ -1,0 +1,298 @@
+Exporta de uma project Library
+class Exporta 
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\MyProject.ap16"; // Path do projeto a Exportar
+        string exportPath = @"C:\Exports\";			// Path para onde exportar
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        foreach (var libElement in projectLibrary.LibraryObjects)
+        {
+            string elementExportPath = Path.Combine(exportPath, libElement.Name + ".xml");
+            libElement.Export(new FileInfo(elementExportPath), ExportOptions.WithDefaults);
+            Console.WriteLine($"Exported: {libElement.Name}");
+        }
+
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+class Importa
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\NewProject.ap16";
+        string importPath = @"C:\Exports\";
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        foreach (string file in Directory.GetFiles(importPath, "*.xml"))
+        {
+            projectLibrary.LibraryObjects.Import(new FileInfo(file), ImportOptions.WithDefaults);
+            Console.WriteLine($"Imported: {Path.GetFileName(file)}");
+        }
+
+        project.Save();
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+
+class instanceFunctionBlock
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\NewProject.ap16";
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        // Find the function block in the library
+        var fbLibraryObject = projectLibrary.LibraryObjects
+            .FirstOrDefault(libObj => libObj.Name == "MyFunctionBlock");
+
+        // Add to project
+        if (fbLibraryObject != null)
+        {
+            var software = project.Devices[0].DeviceItems[0].Software;
+            var fbInstance = fbLibraryObject.Generate(software.BlockGroup);
+            Console.WriteLine($"Function Block {fbInstance.Name} added to project.");
+        }
+
+        project.Save();
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+
+class Cria UDT
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\MyProject.ap16";
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        // Create a new UDT in the library
+        var udtLibraryFolder = projectLibrary.LibraryTypeFolder;
+        var newUdt = udtLibraryFolder.UserDefinedTypes.Create("MyUDT");
+
+        // Add members (variables) to the UDT
+        newUdt.Add("Temperature", "Int");
+        newUdt.Add("Pressure", "Real");
+        newUdt.Add("Status", "Bool");
+
+        Console.WriteLine("Created UDT in Project Library.");
+        
+        project.Save();
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+class CriaFaceplate
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\MyProject.ap16";
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        // Create a new faceplate in the library
+        var faceplateLibraryFolder = projectLibrary.LibraryScreenFolder;
+        var newFaceplate = faceplateLibraryFolder.HmiScreens.Create("MyFaceplate");
+
+        Console.WriteLine("Created Faceplate in Project Library.");
+
+        project.Save();
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+class linkUDTeFaceplate
+{
+    static void Main()
+    {
+        string tiaProjectPath = @"C:\Projects\MyProject.ap16";
+
+        // Open TIA Portal
+        TiaPortal tiaPortal = new TiaPortal(TiaPortalMode.WithUserInterface);
+        Project project = tiaPortal.Projects.Open(new FileInfo(tiaProjectPath));
+
+        // Access Project Library
+        var projectLibrary = project.ProjectLibrary;
+
+        // Find the UDT and Faceplate
+        var udtLibraryFolder = projectLibrary.LibraryTypeFolder;
+        var myUdt = udtLibraryFolder.UserDefinedTypes.FirstOrDefault(udt => udt.Name == "MyUDT");
+
+        var faceplateLibraryFolder = projectLibrary.LibraryScreenFolder;
+        var myFaceplate = faceplateLibraryFolder.HmiScreens.FirstOrDefault(fp => fp.Name == "MyFaceplate");
+
+        if (myUdt != null && myFaceplate != null)
+        {
+            // Add Faceplate parameters linked to UDT
+            myFaceplate.Properties["Parameter_Temperature"] = myUdt.Name + ".Temperature";
+            myFaceplate.Properties["Parameter_Pressure"] = myUdt.Name + ".Pressure";
+            myFaceplate.Properties["Parameter_Status"] = myUdt.Name + ".Status";
+            
+            Console.WriteLine("Linked UDT to Faceplate.");
+        }
+
+        project.Save();
+        project.Close();
+        tiaPortal.Dispose();
+    }
+}
+
+Bibliotecas
+
+using Siemens.Engineering;               // Main namespace for TIA Openness  
+using Siemens.Engineering.Hmi;            // For HMI, screens, and faceplates  
+using Siemens.Engineering.Hmi.Screen;     // For working with HMI screen elements  
+using Siemens.Engineering.Library;        // For accessing project libraries  
+using Siemens.Engineering.SW;             // For software components (Blocks, UDTs, etc.)  
+using Siemens.Engineering.SW.Blocks;      // For Function Blocks (FBs), Function Calls  
+using Siemens.Engineering.SW.Types;       // For User Data Types (UDTs) 
+
+
+
+project.ProjectLibrary			Access the project library.
+ProjectLibrary.LibraryObjects		Get all library objects (FBs, UDTs, Faceplates, etc.).
+ProjectLibrary.LibraryTypeFolder	Access UDTs inside the project library.
+ProjectLibrary.LibraryScreenFolder	Access Faceplates inside the project library.
+ProjectLibrary.LibraryBlockFolder	Access Function Blocks inside the project library.
+
+
+var projectLibrary = project.ProjectLibrary;
+foreach (var libObj in projectLibrary.LibraryObjects)
+{
+    Console.WriteLine($"Library Object: {libObj.Name}");
+}
+
+UDT's
+
+LibraryTypeFolder.UserDefinedTypes.Create("MyUDT")	Create a new UDT in the Project Library.
+UserDefinedType.Add("VarName", "DataType")		Add variables to the UDT.
+
+
+Exemplo
+
+var udtLibraryFolder = projectLibrary.LibraryTypeFolder;
+var myUdt = udtLibraryFolder.UserDefinedTypes.Create("MyUDT");
+
+
+// Add members (variables)
+myUdt.Add("Temperature", "Int");
+myUdt.Add("Pressure", "Real");
+myUdt.Add("Status", "Bool");
+
+
+
+
+FB's
+LibraryBlockFolder.Blocks.Create("MyFunctionBlock", BlockType.FunctionBlock)	Create a new FB in the Project Library.
+FunctionBlock.Interface.Add("VarName", "DataType")				Add interface variables to the FB.
+
+Exemplo
+
+var fbLibraryFolder = projectLibrary.LibraryBlockFolder;
+var myFb = fbLibraryFolder.Blocks.Create("MyFunctionBlock", BlockType.FunctionBlock);
+
+// Add interface variables
+myFb.Interface.Add("Temperature", "Int");
+myFb.Interface.Add("Pressure", "Real");
+
+Faceplates
+
+LibraryScreenFolder.HmiScreens.Create("MyFaceplate")	Create a new faceplate.
+HmiScreen.ScreenItems.Create("TextField")		Add UI elements to the faceplate.
+HmiScreen.Properties["Tag"] = "TagName"			Bind tags (UDTs, FBs) to the faceplate.
+
+
+Exemplo
+
+var faceplateLibraryFolder = projectLibrary.LibraryScreenFolder;
+var myFaceplate = faceplateLibraryFolder.HmiScreens.Create("MyFaceplate");
+
+// Add properties
+myFaceplate.Properties["BackgroundColor"] = "Blue";
+
+
+Ligação entre UDT e Faceplate
+
+HmiScreen.Properties["Parameter_Temperature"] = "MyUDT.Temperature"		Assign UDT variables to faceplate parameters.
+
+Exemplo
+
+myFaceplate.Properties["Parameter_Temperature"] = "MyUDT.Temperature";
+myFaceplate.Properties["Parameter_Pressure"] = "MyUDT.Pressure";
+
+
+
+
+Importar e exportar da project Library
+
+LibraryObject.Export(new FileInfo("Path.xml"), ExportOptions.WithDefaults)	Export a library object.
+LibraryObject.Import(new FileInfo("Path.xml"), ImportOptions.WithDefaults)	Import a library object.
+
+
+Exemplo export
+
+var exportPath = new FileInfo(@"C:\Exports\MyUDT.xml");
+myUdt.Export(exportPath, ExportOptions.WithDefaults);
+Console.WriteLine("Exported UDT.");
+
+
+Exemplo Import
+
+var importPath = new FileInfo(@"C:\Exports\MyUDT.xml");
+projectLibrary.LibraryObjects.Import(importPath, ImportOptions.WithDefaults);
+Console.WriteLine("Imported UDT.");
+
+
+Access Project Library		Siemens.Engineering.Library	project.ProjectLibrary
+Create a UDT			Siemens.Engineering.SW.Types	UserDefinedTypes.Create("MyUDT")
+Create a Function Block		Siemens.Engineering.SW.Blocks	Blocks.Create("MyFunctionBlock")
+Create a Faceplate		Siemens.Engineering.Hmi.Screen	HmiScreens.Create("MyFaceplate")
+Link UDT to Faceplate		Siemens.Engineering.Hmi.Screen	HmiScreen.Properties["Tag"] = "MyUDT.Variable"
+Export a Library Object		Siemens.Engineering.Library	LibraryObject.Export("Path.xml")
+Import a Library Object		Siemens.Engineering.Library	LibraryObject.Import("Path.xml")
+
+
+
+
+Ver também:
+
+Automation of Engineering Workflows
+Introduction and Demo Application
