@@ -52,6 +52,8 @@ using System.Linq.Expressions;
 using Siemens.Engineering.SW.Blocks.Exceptions;
 using System.Xml;
 using static System.Net.WebRequestMethods;
+using Microsoft.Office.Interop.Excel;
+
 
 
 
@@ -66,38 +68,57 @@ namespace OpenessTIA
     public class TIA_V18
     {
 
-
+        //Instância do Tia Portal
         public static TiaPortal instTIA;
+        //Projeto do Tia Portal
         public static Project projectTIA;
-        
+        //Caminho do projeto template para ser copiado para o novo
+        public static string sourcePath;
+        //Caminho de todos os ficheiros usados para a criação do projeto !!!não do projeto em si!!!
+        public static string filePath;
+        //Caminho da Global Library a importar
+        public static string globalLibraryPath;
+        //PLC
         public static Device plcDevice;
+        //HMI
         public static Device hmiDevice;
+        //HMI unified                                   !!Não Usado!!
         public static Device hmiUnifiedDevice;
+        //Software do PLC
         public static PlcSoftware plcSoftware;
+        //Software da HMI unified                       !!Não Usado!!
         public static HmiSoftware hmiSoftware;
+        //Target da HMI
         public static HmiTarget hmiTarget;
+        //Biblioteca do projeto
         public static ProjectLibrary projectLibrary;
+       
+        //Número de Datablocks de Cilindro 
+        public static int numeroDBsCylinder = 0;
+        //Número de DataBlocks total
+        public static int numeroDBs = 0;
+        //Número de Functions Total
+        public static int numeroFCs = 0;
+        //Subnet da HMI e PLC
+        public static Subnet subnet;
+        //Global Library Importada
+        public static UserGlobalLibrary globalLibrary;
+
+
+        //Variáveis auxiliares
         public static DeviceItem plcDeviceItem;
         public static DeviceItem hmiDeviceItem;
-        public static int numeroDBsCylinder = 0;
-        public static int numeroDBs = 0;
-        public static int numeroFCs = 0;
+
+        public static int numModules = 0;
         
-        
+        public static int numInput8Modules = 1;
+        public static int numInput16Modules = 1;
+        public static int numOutput8Modules = 1;
+        public static int numOutput16Modules = 1;
 
-        public static HmiFaceplateInterfaceComposition hmiFaceplateInterfaceComp;
-        
-        public static HmiFaceplateContainer hmiFaceplateContainer;
-        public static HmiFaceplateInterface hmiFaceplate;
-
-        public static LibraryTypeFolder libraryTypeFolder;
-        public static FaceplateLibraryType faceplateFolder;
+        public static int lastOutputAddress = 0;
 
 
-        public static Node no;
-        public static Subnet subnet;
-        public static UserGlobalLibrary globalLibrary;
-        public static HmiScreen hmiScreen;
 
 
 
@@ -105,16 +126,38 @@ namespace OpenessTIA
 
 
         #region Gets e Sets
-
+        //Retorna o número de Datablocks de Cilindro
         public int getNumeroDBsCylinder()
         {
             return numeroDBsCylinder;
         }
+        //Retorna o caminho da Global Library a Importar
+        public string getGlobalLibraryPath()
+        {
+            return globalLibraryPath;
+        }
+        //Atribui um caminho a filePath e por consequência a sourcePath e globalLibraryPath
+        public void setFilePath(string stringFilePath)
+        {
+            filePath = stringFilePath + "\\opennessFiles";
+
+            Console.WriteLine(filePath);
+            sourcePath = filePath + "\\" + "templateProject";
+            globalLibraryPath = filePath + "\\" + "LibraryApp";
+        }
+
+        //Retorna o SourcePath
+        public void setsourcePath(string filePath)
+        {
+            sourcePath = filePath;
+        }
+
+
         #endregion
 
 
         #region Abertura do TIA Portal e do Projeto e salvar projeto
-        //Creates new TIA Portal instance with/without user interface
+        //Cria uma Instância do TIA Portal com ou sem User Interface
         public void createTiaInstance(bool guiTIA)
         {
             //whitelist entry
@@ -134,43 +177,175 @@ namespace OpenessTIA
         }
 
 
-        //Creates or Opens a project in TIA Portal
-
-        public void createOpenTiaProject(string projectPath, string projectName, bool createOpen)
+        //Cria ou abre um projeto do TIA Portal
+        public void createOpenTiaProject(string projectPath, string projectName)
         {
-           
-                
+            Console.WriteLine(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
+
             if (instTIA == null) Console.WriteLine("Instance null");
+            FileInfo file = new FileInfo(String.Format(projectPath + "\\" + projectName + "\\" + projectName + ".ap18"));
+            bool existe = file.Exists;
 
             //Create the project with specified directory and project name and opens it automatically
-            if (createOpen == false)
+            if (existe == false)
             {
+                
+                DirectoryInfo dir = new DirectoryInfo(sourcePath);
+
+                // Check if the source directory exists
+                if (!dir.Exists)
+                    throw new DirectoryNotFoundException($"Source directory not found: {dir.FullName}");
+
+
+
+
                 //Specify the directory where the project will be created
-                DirectoryInfo targetDirectory = new DirectoryInfo(projectPath);
-                Console.WriteLine(targetDirectory);
-                projectTIA = instTIA.Projects.Create(targetDirectory, projectName);
+                DirectoryInfo targetDirectory = new DirectoryInfo(projectPath + "\\" + projectName);
+                targetDirectory.Create();
+                string dirName;
+
+
+                FileInfo fileInfo = new FileInfo(string.Format(sourcePath + "\\" + "templateProject.ap18"));
+                fileInfo.CopyTo(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
+                //
+                DirectoryInfo newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + "AdditionalFiles");
+                newDir.Create();
+                string newPath = projectPath + "\\" + projectName + "\\" + "AdditionalFiles";
+
+
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + "AdditionalFiles" + "\\" + "PLCM");
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + "AdditionalFiles" + "\\" + "PLCM";
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + "AdditionalFiles" + "\\" + "PLCM");
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + "AdditionalFiles", info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                //
+
+                dirName = "IM";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+                //
+                dirName = "Logs";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                //
+
+                dirName = "System";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                //
+
+                dirName = "TMP";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                //
+
+
+                dirName = "UserFiles";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                //
+
+
+                dirName = "VCI";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+
+                //
+
+
+                dirName = "XRef";
+                newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + dirName);
+                newDir.Create();
+                newPath = projectPath + "\\" + projectName + "\\" + dirName;
+                dir = new DirectoryInfo(sourcePath + "\\" + "\\" + dirName);
+                foreach (FileInfo info in dir.GetFiles())
+                {
+                    string targetFilePath = Path.Combine(projectPath + "\\" + projectName + "\\" + dirName, info.Name);
+                    info.CopyTo(targetFilePath);
+                }
+
+                
+
+                
+
+
+                
+                
                 Console.WriteLine("Project created");
-            }
-            else
-            {
 
 
-                //Open Project with specified path
-                FileInfo targetFile = new FileInfo(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
-                Console.WriteLine(targetFile);
-                projectTIA = instTIA.Projects.Open(targetFile);
-                Console.WriteLine("Project oppened");
             }
+            
+
+
+            //Open Project with specified path
+            FileInfo targetFile = new FileInfo(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
+            
+            projectTIA = instTIA.Projects.Open(targetFile);
+            Console.WriteLine("Project oppened");
+            
 
         }
-
+        //Abre o Project View
         public void openProjectView()
         {
 
 
             projectTIA.ShowHwEditor(View.Network);
         }
-
+        //Cria uma Entrada WhiteList no Registry do Windows
         static void SetWhitelist(string ApplicationName, string ApplicationStartupPath)
         {
 
@@ -211,7 +386,7 @@ namespace OpenessTIA
             software.SetValue("DateModified", lastWriteTimeUtcFormatted);
             software.SetValue("Path", ApplicationStartupPath);
         }
-
+        //Guarda o projeto
         public void saveProject()
         {
             projectTIA.Save();
@@ -442,6 +617,12 @@ namespace OpenessTIA
         #region Conexão e atribuição de IP's
 
 
+        public void createConnectionPrompt()
+        {
+            Console.WriteLine("Connect the Devices");
+            Console.ReadLine();
+            
+        }
 
         //Dá um IP ao PLC, cria e concecta à subnet com nome especificado | Esta função deve ser executada antes da giveHmiIpAddress()
         public void givePlcIPAddress(string ipAddress, string subnetName = "PN/IE_1")
@@ -619,9 +800,9 @@ namespace OpenessTIA
         }
 
         //Importa a Global Library com Faceplates UDts e Fb's da Controlar 
-        public void importGlobalLibrary(string libraryAddress)
+        public void importGlobalLibrary()
         {
-            FileInfo info = new FileInfo(libraryAddress);
+            FileInfo info = new FileInfo(globalLibraryPath);
             globalLibrary = instTIA.GlobalLibraries.Open(info, OpenMode.ReadWrite);
 
             Console.WriteLine("Global Library imported");
@@ -834,7 +1015,7 @@ namespace OpenessTIA
 
         }
 
-        //Importa DataBlocks da Global Library. Para Datablocks de Objetos funciona. Implementar XML depois
+        //Importa DataBlocks da Global Library. Para Datablocks de Objetos funciona.(Por algum motivo avança um número de datablock, por isso usar esta função por último)
         public int getDataBlockFromLibrary(string dbName)
         {
             int existeFolder = 0;
@@ -954,7 +1135,7 @@ namespace OpenessTIA
             
         }
 
-
+        //Não necessário
         public void copyToProjectLibraryPrompt()
         {
 
@@ -1242,15 +1423,21 @@ namespace OpenessTIA
         
 
 
-        #region Importação de XML's
-        //Importa XML de uma FB
+        #region Exportação/Importação de XML's
+
+        //Todos os ficheiros são criados e importados a partir do caminho de filePath 
+        //Para um ficheiro ser importado, deve ter o seu nome + _write
+        //FB_write.xml      FC_write.xml        DB_write.xml        Main_write.xml      Screen_write.xml        TagTable_write.xml
+        //Os ficheiros XML sobrepõem-se. Só está disponível para importação um ficheiro XML de cada tipo por vez
+
+        //Importa XML de uma FB 
         public void importFB()
         {
             var fbFolder = plcSoftware.BlockGroup.Groups.Find("FBs");
 
+            string path = filePath + @"\FB_write.xml";
 
-
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Cylinders.xml"));
+            FileInfo info = new FileInfo(string.Format(path));
 
             fbFolder.Blocks.Import(info, ImportOptions.Override);
 
@@ -1260,32 +1447,27 @@ namespace OpenessTIA
 
 
         }
-        
         //Importa XML de uma FC
         public void importFC()
         {
             var fcFolder = plcSoftware.BlockGroup.Groups.Find("FCs");
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Cylinders_write.xml"));
+            string path = filePath + @"\FC_write.xml";
+            FileInfo info = new FileInfo(string.Format(path));
             fcFolder.Blocks.Import(info, ImportOptions.Override);
 
-            //var bloco = fcFolder.Blocks.Find("Cylinders");
-
-            //ICompilable serviceCompilable = bloco.GetService<ICompilable>();
-
-            //serviceCompilable.Compile();
+            
 
 
             Console.WriteLine("FC Imported");
 
         }
-
         //Importa XML de um DB
         public void importDB()
         {
             countDataBlocks();
             var fcFolder = plcSoftware.BlockGroup.Groups.Find("DataBlocks");
-
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Cylinders_DB_write.xml"));
+            string path = filePath + @"\Cylinders_DB_write.xml";
+            FileInfo info = new FileInfo(string.Format(path));
 
             fcFolder.Blocks.Import(info, ImportOptions.Override);
 
@@ -1297,36 +1479,86 @@ namespace OpenessTIA
 
             
         }
-
+        //Importa XML do Main
         public void changeMain()
         {
             var plcFolder = plcSoftware.BlockGroup.Groups;
 
 
             var mainBlock = plcSoftware.BlockGroup.Blocks;
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Main.xml"));
+            string path = filePath + @"\Main_write.xml";
+            FileInfo info = new FileInfo(string.Format(path));
 
             mainBlock.Import(info, ImportOptions.Override);
 
             Console.WriteLine("Main Block Imported");
 
         }
-
-
+        //Importa XML de uma Screen
         public void importScreen()
         {
-            FileInfo file = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Screen_write.xml"));
+            string path = filePath + @"\Screen_write.xml";
+            FileInfo file = new FileInfo(string.Format(path));
             hmiTarget.ScreenFolder.Folders[0].Screens.Import(file, ImportOptions.Override);
-
+            
             Console.WriteLine("Screen Imported");
+        }
+        //Exporta XMl de uma Screen
+        public void exportScreen()
+        {
+            string path = filePath + @"\Screen.xml";
+            FileInfo file = new FileInfo(String.Format(path));
+            hmiTarget.ScreenFolder.Folders[0].Screens[0].Export(file, ExportOptions.WithDefaults);
+
+            
+        }
+        //Exporta XML de Tag Table
+        public void exportHmiTagTable()
+        {
+            string path = filePath + @"\HmiTagTable.xml";
+            FileInfo file = new FileInfo(string.Format(path));
+
+            hmiTarget.TagFolder.TagTables.Find("TagTable_Export").Export(file, ExportOptions.WithDefaults);
+
+
+        }
+        //Importa XML de uma Tag Table
+        public void importHmiTagTable()
+        {
+            
+            string path = filePath + @"\HmiTagTable_write.xml";
+            FileInfo file = new FileInfo(string.Format(path));
+            hmiTarget.TagFolder.TagTables.Import(file, ImportOptions.Override);
+
+            Console.WriteLine("HMI Tag Table Imported");
+        }
+
+        public void exportPlcTagTable()
+        {
+            string path = filePath + @"\PlcTagTable.xml";
+            FileInfo file = new FileInfo(string.Format(path));
+
+
+            plcSoftware.TagTableGroup.TagTables.Find("TagTable_Export").Export(file, ExportOptions.WithDefaults);
+
+        }
+
+        public void importPlcTagTable()
+        {
+            string path = filePath + @"\PlcTagTable_write.xml";
+            FileInfo file = new FileInfo(string.Format(path));
+            plcSoftware.TagTableGroup.TagTables.Import(file, ImportOptions.Override);
+
+            Console.WriteLine("PLC Tag Table Imported");
         }
 
         #endregion
 
 
 
-        #region Escrita do Documento XML de uma DB de Cilindros
-        //Escreve Document Info no XML, usado em todos os objetos do TIA no PLC
+
+        #region Funções de auxilio à escrita de documentos em XML
+        //Escreve Document Info no XML, usado em todos os objetos do TIA no PLC e HMI
         public void writeXmlDocumentInfo(XmlWriter writer)
         {
             writer.WriteStartElement("DocumentInfo");
@@ -1360,41 +1592,94 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
         }
-        //Escreve uma estrutura semelhante a esta <CodeModifiedDate ReadOnly="true">2025-03-19T15:17:54.4622546Z</CodeModifiedDate>
-        public void writeXmlElementWithAtribute(string elementString, string elementValue, string atributeString, string atributeValue, XmlWriter writer)
+
+
+        public void writeXmlDocumentInfoTagTable(XmlWriter writer)
+        {
+            writer.WriteStartElement("DocumentInfo");
+            writer.WriteElementString("Created", "2025-05-06T10:13:32.3319099Z");
+            writer.WriteElementString("ExportSetting", "WithDefaults");
+            writer.WriteStartElement("InstalledProducts");
+            writer.WriteStartElement("Product");
+            writer.WriteElementString("DisplayName", "Totally Integrated Automation Portal");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteStartElement("OptionPackage");
+            writer.WriteElementString("DisplayName", "TIA Portal Openness");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteStartElement("OptionPackage");
+            writer.WriteElementString("DisplayName", "TIA Portal Version Control Interface");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteStartElement("Product");
+            writer.WriteElementString("DisplayName", "STEP 7 Professional");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteStartElement("OptionPackage");
+            writer.WriteElementString("DisplayName", "STEP 7 Safety");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteStartElement("Product");
+            writer.WriteElementString("DisplayName", "WinCC Advanced / Unified PC");
+            writer.WriteElementString("DisplayVersion", "V18");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+        }
+
+        //Escreve uma estrutura do Tipo <elementString attributeString="attributeValue">elementValue</elementString>
+        public void writeXmlElementWithattribute(string elementString, string elementValue, string attributeString, string attributeValue, XmlWriter writer)
         {
             writer.WriteStartElement(elementString);
-            writer.WriteAttributeString(atributeString, atributeValue);
+            writer.WriteAttributeString(attributeString, attributeValue);
             writer.WriteString(elementValue);
             writer.WriteEndElement();
         }
-        public void writeXmlElementWithTwoAtributes(string elementString, string elementValue, string atributeString, string atributeValue, string secondAttributeString, string secondAttributeValue, XmlWriter writer)
+        //Escreve uma estrutura do Tipo <elementString attributeString="attributeValue" secondAttributeString="secondAttributeValue">elementValue</elementString>
+        public void writeXmlElementWithTwoattributes(string elementString, string elementValue, string attributeString, string attributeValue, string secondAttributeString, string secondAttributeValue, XmlWriter writer)
         {
             writer.WriteStartElement(elementString);
-            writer.WriteAttributeString(atributeString, atributeValue);
+            writer.WriteAttributeString(attributeString, attributeValue);
             writer.WriteAttributeString(secondAttributeString, secondAttributeValue);
             writer.WriteString(elementValue);
             writer.WriteEndElement();
         }
-
-        public void writeXmlElementWithThreeAtributes(string elementString, string elementValue, string atributeString, string atributeValue, string secondAttributeString, string secondAttributeValue, string thirdAttribute, string thirdAttributeValue ,XmlWriter writer)
+        //Escreve uma estrutura do Tipo <elementString attributeString="attributeValue" secondAttributeString="secondAttributeValue" thirdAttributeString="thirdAttributeValue">elementValue</elementString>
+        public void writeXmlElementWithThreeattributes(string elementString, string elementValue, string attributeString, string attributeValue, string secondAttributeString, string secondAttributeValue, string thirdAttributeString, string thirdAttributeValue, XmlWriter writer)
         {
             writer.WriteStartElement(elementString);
-            writer.WriteAttributeString(atributeString, atributeValue);
+            writer.WriteAttributeString(attributeString, attributeValue);
             writer.WriteAttributeString(secondAttributeString, secondAttributeValue);
-            writer.WriteAttributeString(thirdAttribute, thirdAttributeValue);
+            writer.WriteAttributeString(thirdAttributeString, thirdAttributeValue);
             writer.WriteString(elementValue);
             writer.WriteEndElement();
         }
 
-        public void writeXmlMemberElement(string name, string dataType, XmlWriter writer)
+        //Transforma o inteiro do idCounter numa String no formato hexadecimal
+        public string intToHex(int idCounter)
+        {
+            string hexVal = Convert.ToString(idCounter, 16);
+
+            hexVal.ToUpper();
+
+            return hexVal;
+        }
+
+        #endregion
+
+        #region Escrita do Documento XML de uma DB de Cilindros
+
+        //Escreve a estrutura de um membro de DB de Cilindro
+        public void writeXmlMemberElementCylinder(string name, string dataType, XmlWriter writer)
         {
             writer.WriteStartElement("Member");
             writer.WriteAttributeString("Name", name);
             writer.WriteAttributeString("Datatype", dataType);
             writer.WriteEndElement();
         }
-        public void writeXmlInterfaceDb(XmlWriter writer, int numCylindros)
+        //Escreve a Interface da DB de Cilindro
+        public void writeXmlInterfaceDbCylinder(XmlWriter writer, int numCylindros)
         {   
             
             
@@ -1408,38 +1693,38 @@ namespace OpenessTIA
                     writer.WriteAttributeString("Remanence", "NonRetain");
                     writer.WriteAttributeString("Accessibility", "Public");
                         writer.WriteStartElement("AttributeList");
-                            writeXmlElementWithTwoAtributes("BooleanAttribute", "true", "Name", "ExternalAccessible", "SystemDefined", "true",  writer);
-                            writeXmlElementWithTwoAtributes("BooleanAttribute", "true", "Name", "ExternalVisible", "SystemDefined", "true",  writer);
-                            writeXmlElementWithTwoAtributes("BooleanAttribute", "true", "Name", "ExternalWritable", "SystemDefined", "true",  writer);
-                            writeXmlElementWithThreeAtributes("BooleanAttribute", "true", "Name", "UserVisible","Informative", "true", "SystemDefined", "true",  writer);
-                            writeXmlElementWithThreeAtributes("BooleanAttribute", "false", "Name", "UserReadOnly", "Informative", "true", "SystemDefined", "true",  writer);
-                            writeXmlElementWithThreeAtributes("BooleanAttribute", "true", "Name", "UserDeletable", "Informative", "true", "SystemDefined", "true",  writer);
-                            writeXmlElementWithTwoAtributes("BooleanAttribute","false", "Name", "SetPoint", "SystemDefined", "true",  writer);
+                            writeXmlElementWithTwoattributes("BooleanAttribute", "true", "Name", "ExternalAccessible", "SystemDefined", "true",  writer);
+                            writeXmlElementWithTwoattributes("BooleanAttribute", "true", "Name", "ExternalVisible", "SystemDefined", "true",  writer);
+                            writeXmlElementWithTwoattributes("BooleanAttribute", "true", "Name", "ExternalWritable", "SystemDefined", "true",  writer);
+                            writeXmlElementWithThreeattributes("BooleanAttribute", "true", "Name", "UserVisible","Informative", "true", "SystemDefined", "true",  writer);
+                            writeXmlElementWithThreeattributes("BooleanAttribute", "false", "Name", "UserReadOnly", "Informative", "true", "SystemDefined", "true",  writer);
+                            writeXmlElementWithThreeattributes("BooleanAttribute", "true", "Name", "UserDeletable", "Informative", "true", "SystemDefined", "true",  writer);
+                            writeXmlElementWithTwoattributes("BooleanAttribute","false", "Name", "SetPoint", "SystemDefined", "true",  writer);
                         writer.WriteEndElement();
                         writer.WriteStartElement("Sections");
                             writer.WriteStartElement("Section");
                             writer.WriteAttributeString("Name", "None");
-                                writeXmlMemberElement("name", "String[20]", writer);
+                                writeXmlMemberElementCylinder("name", "String[20]", writer);
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Status");
                                 writer.WriteAttributeString("Datatype", "\"CTRL_DeviceStatus\"");
                                     writer.WriteStartElement("Sections");
                                             writer.WriteStartElement("Section");
                                             writer.WriteAttributeString("Name", "None");
-                                                writeXmlMemberElement("ready", "Bool", writer);
-                                                writeXmlMemberElement("done", "Bool", writer);
-                                                writeXmlMemberElement("busy", "Bool", writer);
-                                                writeXmlMemberElement("idle", "Bool", writer);
-                                                writeXmlMemberElement("nextDeviceReady", "Bool", writer);
-                                                writeXmlMemberElement("error", "Bool", writer);
-                                                writeXmlMemberElement("reset", "Bool", writer);
-                                                writeXmlMemberElement("step", "Int", writer);
-                                                writeXmlMemberElement("homeStep", "Int", writer);
-                                                writeXmlMemberElement("manualMode", "Bool", writer);
-                                                writeXmlMemberElement("homingOrder", "Bool", writer);
-                                                writeXmlMemberElement("homed", "Bool", writer);
-                                                writeXmlMemberElement("clock", "Bool", writer);
-                                                writeXmlMemberElement("maximized", "Bool", writer);
+                                                writeXmlMemberElementCylinder("ready", "Bool", writer);
+                                                writeXmlMemberElementCylinder("done", "Bool", writer);
+                                                writeXmlMemberElementCylinder("busy", "Bool", writer);
+                                                writeXmlMemberElementCylinder("idle", "Bool", writer);
+                                                writeXmlMemberElementCylinder("nextDeviceReady", "Bool", writer);
+                                                writeXmlMemberElementCylinder("error", "Bool", writer);
+                                                writeXmlMemberElementCylinder("reset", "Bool", writer);
+                                                writeXmlMemberElementCylinder("step", "Int", writer);
+                                                writeXmlMemberElementCylinder("homeStep", "Int", writer);
+                                                writeXmlMemberElementCylinder("manualMode", "Bool", writer);
+                                                writeXmlMemberElementCylinder("homingOrder", "Bool", writer);
+                                                writeXmlMemberElementCylinder("homed", "Bool", writer);
+                                                writeXmlMemberElementCylinder("clock", "Bool", writer);
+                                                writeXmlMemberElementCylinder("maximized", "Bool", writer);
                                              writer.WriteEndElement();
                                         writer.WriteEndElement();
                                 writer.WriteEndElement();
@@ -1447,65 +1732,65 @@ namespace OpenessTIA
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Enable");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
                                 writer.WriteEndElement();
 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Order");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
-                                    writeXmlMemberElement("hmiHome", "Bool", writer);
-                                    writeXmlMemberElement("hmiWork", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("hmiHome", "Bool", writer);
+                                    writeXmlMemberElementCylinder("hmiWork", "Bool", writer);
                                 writer.WriteEndElement();
                                 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Time");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("filterHome", "Time", writer);
-                                    writeXmlMemberElement("filterWork", "Time", writer);
-                                    writeXmlMemberElement("timeoutHome", "Time", writer);
-                                    writeXmlMemberElement("timeoutWork", "Time", writer);
+                                    writeXmlMemberElementCylinder("filterHome", "Time", writer);
+                                    writeXmlMemberElementCylinder("filterWork", "Time", writer);
+                                    writeXmlMemberElementCylinder("timeoutHome", "Time", writer);
+                                    writeXmlMemberElementCylinder("timeoutWork", "Time", writer);
                                 writer.WriteEndElement();
 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Sensor");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
                                 writer.WriteEndElement();
 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Output");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
                                 writer.WriteEndElement();
 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Position");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
                                 writer.WriteEndElement();
 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "Error");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("home", "Bool", writer);
-                                    writeXmlMemberElement("work", "Bool", writer);
+                                    writeXmlMemberElementCylinder("home", "Bool", writer);
+                                    writeXmlMemberElementCylinder("work", "Bool", writer);
                                 writer.WriteEndElement();
                                 
                                 writer.WriteStartElement("Member");
                                 writer.WriteAttributeString("Name", "hmiMaximized");
                                 writer.WriteAttributeString("Datatype", "Struct");
-                                    writeXmlMemberElement("errorHome", "Bool", writer);
-                                    writeXmlMemberElement("errorWork", "Bool", writer);
-                                    writeXmlMemberElement("error", "Bool", writer);
+                                    writeXmlMemberElementCylinder("errorHome", "Bool", writer);
+                                    writeXmlMemberElementCylinder("errorWork", "Bool", writer);
+                                    writeXmlMemberElementCylinder("error", "Bool", writer);
                                 writer.WriteEndElement();
                                 
-                                writeXmlMemberElement("doesNotRetainOutput", "Bool", writer);
+                                writeXmlMemberElementCylinder("doesNotRetainOutput", "Bool", writer);
 
                             
                 writer.WriteEndElement();
@@ -1516,14 +1801,17 @@ namespace OpenessTIA
                   
 
         }
-
-        public void writeXmlfileDB(int numCylinders, string dbName)
+        //**Escreve o documento em XML de uma DB de Cilindro
+        public void writeXmlfileDBCylinder(int numCylinders, string dbName)
         {
+
+            string path = filePath + @"\Cylinders_DB_write.xml";
             countDataBlocks();
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Cylinders_DB_teste.xml"));
+            FileInfo info = new FileInfo(string.Format(path));
 
+            
 
-            XmlWriter writer = XmlWriter.Create(@"C:\Temp\teste2Openess\Cylinders_DB_write.xml");
+            XmlWriter writer = XmlWriter.Create(path);
 
             writer.WriteStartDocument();
                 writer.WriteStartElement("Document");
@@ -1538,12 +1826,12 @@ namespace OpenessTIA
                         //Start Attribute List
                         writer.WriteStartElement("AttributeList");
                             writer.WriteElementString("AutoNumber", "true");
-                            writeXmlElementWithAtribute("CodeModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("CompileDate", "2025-03-19T15:18:53.1916012Z", "ReadOnly", "true", writer); 
-                            writeXmlElementWithAtribute("CreationDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer); 
+                            writeXmlElementWithattribute("CodeModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("CompileDate", "2025-03-19T15:18:53.1916012Z", "ReadOnly", "true", writer); 
+                            writeXmlElementWithattribute("CreationDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer); 
                             writer.WriteElementString("DBAccessibleFromOPCUA", "true");
                             writer.WriteElementString("DBAccessibleFromWebserver", "true");
-                            writeXmlElementWithAtribute("DownloadWithoutReinit", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("DownloadWithoutReinit", "false", "ReadOnly", "true", writer);
                             writer.WriteElementString("HeaderAuthor", "");
                             writer.WriteElementString("HeaderFamily", "");
                             writer.WriteElementString("HeaderName", "");
@@ -1554,7 +1842,7 @@ namespace OpenessTIA
                                 writer.WriteAttributeString("xmlns", "http://www.siemens.com/automation/Openness/SW/Interface/v5");
                                     writer.WriteStartElement("Section");
                                     writer.WriteAttributeString("Name", "Static");
-                            writeXmlInterfaceDb(writer, numCylinders);
+                            writeXmlInterfaceDbCylinder(writer, numCylinders);
 
                                               writer.WriteEndElement();
                                 
@@ -1562,24 +1850,26 @@ namespace OpenessTIA
                              
                             writer.WriteEndElement();
                             writer.WriteEndElement();
-                            writeXmlElementWithAtribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("IsConsistent", "true", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsConsistent", "true", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
                             writer.WriteElementString("IsOnlyStoredInLoadMemory", "false");
-                            writeXmlElementWithAtribute("IsPLCDB", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsPLCDB", "false", "ReadOnly", "true", writer);
                             writer.WriteElementString("IsRetainMemResEnabled", "false");
                             writer.WriteElementString("IsWriteProtectedInAS", "false");
                             writer.WriteElementString("MemoryLayout", "Optimized");
                             writer.WriteElementString("MemoryReserve", "100");
-                            writeXmlElementWithAtribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
                             writer.WriteElementString("Name", dbName);
                             writer.WriteElementString("Namespace", "");
+                            countDataBlocks();
+                            
                             string numDbString = (numeroDBs + 1).ToString();
                             writer.WriteElementString("Number", numDbString);
                             
-                            writeXmlElementWithAtribute("ParameterModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("ParameterModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
                             writer.WriteElementString("ProgrammingLanguage", "DB");
-                            writeXmlElementWithAtribute("StructureModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("StructureModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
                             writer.WriteEndElement();
             
             //End Attribute List
@@ -1626,12 +1916,12 @@ namespace OpenessTIA
             writer.WriteEndDocument();
             writer.Flush();
             writer.Close();
-            
-            
 
-            
+            Console.WriteLine("DB XML file Written ");
 
-            
+
+
+
         }
 
         #endregion Escrita do Documento XML de uma DB de Cilindros
@@ -1639,12 +1929,8 @@ namespace OpenessTIA
 
         #region Escrita do Documento XML de uma FC de Cilindros
 
-        /// <summary>
-        /// Terminar
-        /// </summary>
-        /// <param name="writer"></param>
-        /// 
-
+       
+        //Escreve a estrutura "Wire" numa FC
         public void writeXmlSingleWire(XmlWriter writer, int Uid_1, int Uid_2, int Uid_3, string name)
         {
             writer.WriteStartElement("Wire");
@@ -1658,6 +1944,7 @@ namespace OpenessTIA
                 writer.WriteEndElement();
             writer.WriteEndElement();
         }
+        //Escreve todas as Wires da FC
         public void writeXmlWires(XmlWriter writer)
         {
             writer.WriteStartElement("Wire");
@@ -1749,26 +2036,19 @@ namespace OpenessTIA
 
 
         }
-        public void writeXmlPartParameter(string name, string section, string type, XmlWriter writer)
+        //Escreve uma estrutra de parametro de FC
+        public void writeXmlPartParameterCylinder(string name, string section, string type, XmlWriter writer)
         {
             writer.WriteStartElement("Parameter");
             writer.WriteAttributeString("Name", name);
             writer.WriteAttributeString("Section", section);
             writer.WriteAttributeString("Type", type);
-                writeXmlElementWithTwoAtributes("StringAttribute", "S7_Visible", "Name", "InterfaceFlags", "Informative", "true", writer);
+                writeXmlElementWithTwoattributes("StringAttribute", "S7_Visible", "Name", "InterfaceFlags", "Informative", "true", writer);
             writer.WriteEndElement();
         }
 
-        
-        public string intToHex(int idCounter)
-        {
-            string hexVal = Convert.ToString(idCounter, 16);
-
-            hexVal.ToUpper();
-
-            return hexVal;
-        }
-        public int writeXmlNetorksFc(int idCounter, XmlWriter writer, int numCylinders)
+        //Escreve as Networks com FBs de Cilindro na FC
+        public int writeXmlNetorksFcCylinder(int idCounter, XmlWriter writer, int numCylinders)
         {
             
             string numCilindroString;
@@ -1817,8 +2097,8 @@ namespace OpenessTIA
                                         writer.WriteAttributeString("Name", "FB_Cylinder");
                                         writer.WriteAttributeString("BlockType", "FB");
                                             string fbBlockNumber = plcSoftware.BlockGroup.Groups.Find("FBs").Blocks.Find("FB_Cylinder").Number.ToString();
-                                            writeXmlElementWithTwoAtributes("IntegerAttribute", fbBlockNumber, "Name", "BlockNumber",  "Informative", "true", writer);
-                                            writeXmlElementWithTwoAtributes("DateAttribute", "2024-07-16T16:22:51", "Name", "ParameterModifiedTS",  "Informative", "true", writer);
+                                            writeXmlElementWithTwoattributes("IntegerAttribute", fbBlockNumber, "Name", "BlockNumber",  "Informative", "true", writer);
+                                            writeXmlElementWithTwoattributes("DateAttribute", "2024-07-16T16:22:51", "Name", "ParameterModifiedTS",  "Informative", "true", writer);
                                                 writer.WriteStartElement("Instance");
                                                 writer.WriteAttributeString("Scope", "GlobalVariable");
                                                 writer.WriteAttributeString("UId", "23");
@@ -1836,25 +2116,25 @@ namespace OpenessTIA
                                                     writer.WriteAttributeString("Informative", "true");
                                                 writer.WriteEndElement();
                                                 writer.WriteEndElement();
-                                                writeXmlPartParameter("name", "Input", "String[20]", writer);
-                                                writeXmlPartParameter("enableHome", "Input", "Bool", writer);
-                                                writeXmlPartParameter("enableWork", "Input", "Bool", writer);
-                                                writeXmlPartParameter("doorOpen", "Input", "Bool", writer);
-                                                writeXmlPartParameter("manualMode", "Input", "Bool", writer);
-                                                writeXmlPartParameter("reset", "Input", "Bool", writer);
-                                                writeXmlPartParameter("iHome", "Input", "Bool", writer);
-                                                writeXmlPartParameter("iWork", "Input", "Bool", writer);
-                                                writeXmlPartParameter("orderHome", "Input", "Bool", writer);
-                                                writeXmlPartParameter("orderWork", "Input", "Bool", writer);
-                                                writeXmlPartParameter("doesNotRetainOutput", "Input", "Bool", writer);
-                                                writeXmlPartParameter("timeFilterHome", "Input", "Time", writer);
-                                                writeXmlPartParameter("timeFilterWork", "Input", "Time", writer);
-                                                writeXmlPartParameter("timeTimeout", "Input", "Time", writer);
-                                                writeXmlPartParameter("outputHome", "Output", "Bool", writer);
-                                                writeXmlPartParameter("outputWork", "Output", "Bool", writer);
-                                                writeXmlPartParameter("errorTimeoutWork", "Output", "Bool", writer);
-                                                writeXmlPartParameter("errorTimeoutHome", "Output", "Bool", writer);
-                                                writeXmlPartParameter("Cylinder", "InOut", "\"CTRL_Cylinder\"", writer);
+                                                writeXmlPartParameterCylinder("name", "Input", "String[20]", writer);
+                                                writeXmlPartParameterCylinder("enableHome", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("enableWork", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("doorOpen", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("manualMode", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("reset", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("iHome", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("iWork", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("orderHome", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("orderWork", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("doesNotRetainOutput", "Input", "Bool", writer);
+                                                writeXmlPartParameterCylinder("timeFilterHome", "Input", "Time", writer);
+                                                writeXmlPartParameterCylinder("timeFilterWork", "Input", "Time", writer);
+                                                writeXmlPartParameterCylinder("timeTimeout", "Input", "Time", writer);
+                                                writeXmlPartParameterCylinder("outputHome", "Output", "Bool", writer);
+                                                writeXmlPartParameterCylinder("outputWork", "Output", "Bool", writer);
+                                                writeXmlPartParameterCylinder("errorTimeoutWork", "Output", "Bool", writer);
+                                                writeXmlPartParameterCylinder("errorTimeoutHome", "Output", "Bool", writer);
+                                                writeXmlPartParameterCylinder("Cylinder", "InOut", "\"CTRL_Cylinder\"", writer);
 
                                             writer.WriteEndElement();
                                     writer.WriteEndElement();
@@ -1931,8 +2211,8 @@ namespace OpenessTIA
 
             return idCounter;
         }
-
-        public void writeXmlInterfaceFc(XmlWriter writer)
+        //Escreve a Interface da FC de Cilindro
+        public void writeXmlInterfaceFcCylinder(XmlWriter writer)
         {
             writer.WriteStartElement("Interface");
                 writer.WriteStartElement("Sections", "http://www.siemens.com/automation/Openness/SW/Interface/v5");
@@ -1968,12 +2248,14 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
         }
-        public void writeXmlFileFC(int numCylinders, string fcName)
+        //**Escreve o documento em XML de uma FC de Cilindro
+        public void writeXmlFileFcCylinder(int numCylinders, string fcName)
         {
-            FileInfo info = new FileInfo(string.Format(@"C:\Temp\teste2Openess\Cylinders.xml"));
+            string path = filePath + @"\FC_write.xml";
+            FileInfo info = new FileInfo(string.Format(path));
 
             countFCs();
-            XmlWriter writer = XmlWriter.Create(@"C:\Temp\teste2Openess\Cylinders_write.xml");
+            XmlWriter writer = XmlWriter.Create(path);
 
             int idCounter = 0;
 
@@ -1990,37 +2272,37 @@ namespace OpenessTIA
                         //Start Attribute List
                         writer.WriteStartElement("AttributeList");
                             writer.WriteElementString("AutoNumber", "true");
-                            writeXmlElementWithAtribute("CodeModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("CompileDate", "2025-03-19T15:18:53.1916012Z", "ReadOnly", "true", writer); 
-                            writeXmlElementWithAtribute("CreationDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer); 
-                            writeXmlElementWithAtribute("HandleErrorsWithinBlock", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("CodeModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("CompileDate", "2025-03-19T15:18:53.1916012Z", "ReadOnly", "true", writer); 
+                            writeXmlElementWithattribute("CreationDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer); 
+                            writeXmlElementWithattribute("HandleErrorsWithinBlock", "false", "ReadOnly", "true", writer);
                             writer.WriteElementString("HeaderAuthor", "");
                             writer.WriteElementString("HeaderFamily", "");
                             writer.WriteElementString("HeaderName", "");
                             writer.WriteElementString("HeaderVersion", "0.1");
 
                             //Start Interface
-                            writeXmlInterfaceFc(writer);
+                            writeXmlInterfaceFcCylinder(writer);
                             //End Interface
 
-                            writeXmlElementWithAtribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("IsConsistent", "true", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsConsistent", "true", "ReadOnly", "true", writer);
                             writer.WriteElementString("IsIECCheckEnabled", "false");
-                            writeXmlElementWithAtribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("IsWriteProtected", "false", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("LibraryConformanceStatus", "Error: The block contains calls of single instances. Warning: The object contains access to global data blocks.", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("IsWriteProtected", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("LibraryConformanceStatus", "Error: The block contains calls of single instances. Warning: The object contains access to global data blocks.", "ReadOnly", "true", writer);
                             writer.WriteElementString("MemoryLayout", "Optimized");
-                            writeXmlElementWithAtribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
                             writer.WriteElementString("Name", fcName);
                             writer.WriteElementString("Namespace", "");
                             string fcNumberString = (numeroFCs +1).ToString();
                             writer.WriteElementString("Number", fcNumberString);
                             
-                            writeXmlElementWithAtribute("ParameterModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writeXmlElementWithAtribute("PLCSimAdvancedSupport", "false", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("ParameterModified", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("PLCSimAdvancedSupport", "false", "ReadOnly", "true", writer);
                             writer.WriteElementString("ProgrammingLanguage", "LAD");
                             writer.WriteElementString("SetENOAutomatically", "false");
-                            writeXmlElementWithAtribute("StructureModified", "2025-03-21T14:22:32.6241053Z", "ReadOnly", "true", writer);
+                            writeXmlElementWithattribute("StructureModified", "2025-03-21T14:22:32.6241053Z", "ReadOnly", "true", writer);
                             writer.WriteElementString("UDABlockProperties", "");
                             writer.WriteElementString("UDAEnableTagReadback", "false");
                          writer.WriteEndElement();
@@ -2045,7 +2327,7 @@ namespace OpenessTIA
                         idCounter = 3;
 
                          //Start Networks
-                         idCounter = writeXmlNetorksFc(idCounter, writer, numCylinders);
+                         idCounter = writeXmlNetorksFcCylinder(idCounter, writer, numCylinders);
                             
 
                         //Start Final MultilingualText 
@@ -2074,6 +2356,8 @@ namespace OpenessTIA
             writer.WriteEndDocument();
             writer.Flush();
             writer.Close();
+
+            Console.WriteLine("FC XML file Written ");
         }
 
 
@@ -2087,7 +2371,7 @@ namespace OpenessTIA
 
         
 
-        public int writeFaceplateInstances(XmlWriter writer, int idCounter, int numCylindros )
+        public int writeFaceplateInstancesCylinder(XmlWriter writer, int idCounter, int numCylindros )
         {
             string top;
             string left;
@@ -2166,12 +2450,12 @@ namespace OpenessTIA
 
             return idCounter;
         }
-        public void writeXmlFileScreen(int numCilindros, string name)
+        public void writeXmlFileScreenCylinder(int numCilindros, string name, string templateName = "Template")
         {
 
-            
 
-            XmlWriter writer = XmlWriter.Create(@"C:\Temp\teste2Openess\Screen_write.xml");
+            string path = filePath + @"\Screen_write.xml";
+            XmlWriter writer = XmlWriter.Create(path);
 
             int idCounter = 0;
 
@@ -2198,6 +2482,20 @@ namespace OpenessTIA
                             writer.WriteElementString("Visible", "true");
                             writer.WriteElementString("Width", "1280");
                         writer.WriteEndElement();
+
+
+                      //Start LinkList
+                      writer.WriteStartElement("LinkList");
+                        writer.WriteStartElement("Template");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+
+                            writer.WriteElementString("Name", templateName);
+
+                        writer.WriteEndElement();
+
+                      writer.WriteEndElement();
+
+                      //End LinkList
 
                       //Start Object List
                       writer.WriteStartElement("ObjectList");
@@ -2233,7 +2531,7 @@ namespace OpenessTIA
 
                             
                             
-                        writeFaceplateInstances(writer, idCounter, 4);
+                        writeFaceplateInstancesCylinder(writer, idCounter, numCilindros);
                         writer.WriteEndElement();
                       
                       
@@ -2253,41 +2551,579 @@ namespace OpenessTIA
             writer.Flush();
             writer.Close();
 
+            Console.WriteLine("HMI Screen XML file Written ");
+
         }
 
         #endregion
 
 
-
-        #region tag table da hmi
-
         
-        
-        public void exportTagTable()
-        {
-            FileInfo file = new FileInfo(string.Format(@"C:\Temp\teste2Openess\tagTable.xml"));
 
-            hmiTarget.TagFolder.TagTables.Find("CylinderTT").Export(file, ExportOptions.WithDefaults);
-
-
-        }
-
-
-        public void importTagTable()
-        {
-            FileInfo file = new FileInfo(string.Format(@"C:\Temp\teste2Openess\tagTable.xml"));
-            hmiTarget.TagFolder.TagTables.Import(file, ImportOptions.Override);
-        }
-
-
-        #endregion tag table da hmi
 
 
         #region Escrita de um documento em XML de uma TagTable de HMI
-
-        public void writeXmlTagTableCilindro(int numCilindros, string name)
+        
+        //Escreve estruturas de elementos do Cilindro
+        public int writeSingleIdTagTableObjectCylinderStructure(XmlWriter writer, int idCounter, string name)
         {
-            XmlWriter writer = XmlWriter.Create(@"C:\Temp\teste2Openess\TagTable_write.xml");
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", name);
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeDoubleIdTagTableObjectCylinder(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("MultilingualText");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Comment");
+            writer.WriteStartElement("ObjectList");
+            writer.WriteStartElement("MultilingualTextItem");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Items");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("Culture", "en-US");
+            writer.WriteElementString("Text", "");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder1(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+                writer.WriteStartElement("AttributeList");
+                    writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+                    writer.WriteElementString("LinearScaling", "false");
+                    writer.WriteElementString("LogicalAddress", "");
+                    writer.WriteElementString("Name", "name");
+                    writer.WriteElementString("ScalingHmiHigh", "100");
+                    writer.WriteElementString("ScalingHmiLow", "0");
+                    writer.WriteElementString("ScalingPlcHigh", "10");
+                    writer.WriteElementString("ScalingPlcLow", "0");
+                    writer.WriteElementString("StartValue", "");
+                    writer.WriteElementString("SubstituteValue", "");
+                    writer.WriteElementString("SubstituteValueUsage", "None");
+                writer.WriteEndElement();
+                writer.WriteStartElement("ObjectList");
+                    
+                idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+    
+                writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder2(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Status");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "ready");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "done");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "busy");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "idle");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "nextDeviceReady");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "error");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "reset");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "step");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "homeStep");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "manualMode");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "homingOrder");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "homed");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "clock");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "maximized");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder3(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Enable");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder4(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Order");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "hmiHome");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "hmiWork");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder5(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Time");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "filterHome");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "filterWork");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "timeoutHome");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "timeoutWork");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder6(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Sensor");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder7(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Output");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder8(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Position");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder9(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "Error");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "home");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "work");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder10(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "hmiMaximized");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "errorHome");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "errorWork");
+            idCounter = writeSingleIdTagTableObjectCylinderStructure(writer, idCounter, "error");
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+        public int writeSingleIdTagTableObjectCylinder11(XmlWriter writer, int idCounter)
+        {
+            writer.WriteStartElement("Hmi.Tag.TagStructureMember");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+            writer.WriteAttributeString("CompositionName", "Members");
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+            writer.WriteElementString("LinearScaling", "false");
+            writer.WriteElementString("LogicalAddress", "");
+            writer.WriteElementString("Name", "doesNotRetainOutput");
+            writer.WriteElementString("ScalingHmiHigh", "100");
+            writer.WriteElementString("ScalingHmiLow", "0");
+            writer.WriteElementString("ScalingPlcHigh", "10");
+            writer.WriteElementString("ScalingPlcLow", "0");
+            writer.WriteElementString("StartValue", "");
+            writer.WriteElementString("SubstituteValue", "");
+            writer.WriteElementString("SubstituteValueUsage", "None");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+
+            idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            return idCounter;
+        }
+
+        //Escreve cada membro da Tag Table
+        public int writeTagTableMembersCylinder(XmlWriter writer, int idCounter, int numCilindros)
+        {
+
+
+            for(int i = 0; i < numCilindros; i++)
+            {
+                writer.WriteStartElement("Hmi.Tag.Tag");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                if (i == 0)
+                {
+                    idCounter += 5;
+                }
+                else
+                {
+                    idCounter += 2;
+                }
+                    writer.WriteAttributeString("CompositionName", "Tags");
+                //Start Attribute List
+                    writer.WriteStartElement("AttributeList");
+                        writer.WriteElementString("AcquisitionTriggerMode", "Visible");
+                        writer.WriteElementString("AddressAccessMode", "Symbolic");
+                        writer.WriteElementString("Coding", "Binary");
+                        writer.WriteElementString("ConfirmationType", "None");
+                        writer.WriteElementString("GmpRelevant", "false");
+                        writer.WriteElementString("JobNumber", "0");
+                        writer.WriteElementString("Length", "0");
+                        writer.WriteElementString("LinearScaling", "false");
+                        writer.WriteElementString("LogicalAddress", "");
+                        writer.WriteElementString("MandatoryCommenting", "false");
+                        string memberName = "Cylinders_DB_Cilindro" + (i + 1);
+                        
+                        writer.WriteElementString("Name", memberName);
+                        writer.WriteElementString("Persistency", "false");
+                        writer.WriteElementString("QualityCode", "false");
+                        writer.WriteElementString("ScalingHmiHigh", "100");
+                        writer.WriteElementString("ScalingHmiLow", "0");
+                        writer.WriteElementString("ScalingPlcHigh", "10");
+                        writer.WriteElementString("ScalingPlcLow", "0");
+                        writer.WriteElementString("StartValue", "");
+                        writer.WriteElementString("SubstituteValue", "");
+                        writer.WriteElementString("SubstituteValueUsage", "None");
+                        writer.WriteElementString("Synchronization", "false");
+                        writer.WriteElementString("UpdateMode", "ProjectWide");
+                        writer.WriteElementString("UseMultiplexing", "false");
+
+                    writer.WriteEndElement();
+                //End Attribute List
+                //Start Link List
+                    writer.WriteStartElement("LinkList");
+                        writer.WriteStartElement("AcquisitionCycle");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+                            writer.WriteElementString("Name", "1 s");
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("Connection");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+                            writer.WriteElementString("Name", "HMI_Connection_1");
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("ControllerTag");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+                            string linkName = "Cylinders_DB.Cilindro" + (i+1);
+                            writer.WriteElementString("Name", linkName);
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("DataType");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+                            writer.WriteElementString("Name", "CTRL_Cylinder");
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("HmiDataType");
+                        writer.WriteAttributeString("TargetID", "@OpenLink");
+                            writer.WriteElementString("Name", "CTRL_Cylinder");
+                        writer.WriteEndElement();
+
+
+                    
+
+                    writer.WriteEndElement();
+                //End Link List
+                //Start Object List
+                    writer.WriteStartElement("ObjectList");
+                        //Double ID structures
+                        idCounter = writeDoubleIdTagTableObjectCylinder(writer, idCounter);
+                        writer.WriteStartElement("MultilingualText");
+                        writer.WriteAttributeString("ID", intToHex(idCounter));
+                        idCounter++;
+                        writer.WriteAttributeString("CompositionName", "DisplayName");
+                        writer.WriteStartElement("ObjectList");
+                        writer.WriteStartElement("MultilingualTextItem");
+                        writer.WriteAttributeString("ID", intToHex(idCounter));
+                        idCounter++;
+                        writer.WriteAttributeString("CompositionName", "Items");
+                        writer.WriteStartElement("AttributeList");
+                        writer.WriteElementString("Culture", "en-US");
+                        writer.WriteElementString("Text", "");
+                        writer.WriteEndElement();
+                        writer.WriteEndElement();
+                        writer.WriteEndElement();
+                        writer.WriteEndElement();
+                //Single Id Structures
+                idCounter = writeSingleIdTagTableObjectCylinder1(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder2(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder3(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder4(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder5(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder6(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder7(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder8(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder9(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder10(writer, idCounter);
+                        idCounter = writeSingleIdTagTableObjectCylinder11(writer, idCounter);
+
+                        writer.WriteStartElement("MultilingualText");
+                        writer.WriteAttributeString("ID", intToHex(idCounter)); 
+                        idCounter++;
+                        writer.WriteAttributeString("CompositionName", "TagValue");
+                            writer.WriteStartElement("ObjectList");
+                                writer.WriteStartElement("MultilingualTextItem");
+                                writer.WriteAttributeString("ID", intToHex(idCounter));
+                                idCounter++;
+                                writer.WriteAttributeString("CompositionName", "Items");
+                                    writer.WriteStartElement("AttributeList");
+                                        writer.WriteElementString("Culture", "en-US");
+                                        writer.WriteElementString("Text", "");
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                        writer.WriteEndElement();
+
+
+
+
+
+                writer.WriteEndElement();
+                //End Object List
+                
+
+                writer.WriteEndElement();
+
+
+
+
+
+
+
+            }
+
+            return idCounter;
+        }
+
+        //Função principal de escrita de XML da Tag Table de HMI de Cilindro
+        public void writeXmlHmiTagTableCylinder(int numCilindros, string name)
+        {
+            string path = filePath + @"\HmiTagTable_write.xml";
+            XmlWriter writer = XmlWriter.Create(path);
 
             int idCounter = 0;
 
@@ -2297,7 +3133,7 @@ namespace OpenessTIA
                     writer.WriteStartElement("Engineering");
                     writer.WriteAttributeString("version", "V18");
                     writer.WriteEndElement();
-                    writeXmlDocumentInfo(writer);
+                    writeXmlDocumentInfoTagTable(writer);
 
                     //Start Tag Table
 
@@ -2305,12 +3141,13 @@ namespace OpenessTIA
                     writer.WriteAttributeString("ID", "0");
                     idCounter++;
                         writer.WriteStartElement("AttributeList");
+                            
                             writer.WriteElementString("Name", name);
                         writer.WriteEndElement();
 
                     //Start Object List (Tag Table Members)
                         writer.WriteStartElement("ObjectList");
-
+                            idCounter = writeTagTableMembersCylinder(writer, idCounter, numCilindros);
 
                         writer.WriteEndElement();
                     //End Object List (Tag Table Members)
@@ -2319,17 +3156,264 @@ namespace OpenessTIA
             writer.WriteEndDocument();
             writer.Flush();
             writer.Close();
+
+            Console.WriteLine("HMI TagTable XML file Written ");
         }
 
         #endregion
 
 
 
+        #region Imports do Excel
+        public void writeXmlPlcTagTableIO(string fileName)
+        {
+            Console.WriteLine(filePath);
+            string path = filePath +"\\" +  fileName + ".xlsx";
+            Microsoft.Office.Interop.Excel.Application excel = new Microsoft.Office.Interop.Excel.Application();
+            Workbook workbook = excel.Workbooks.Open(path);
+            Worksheet worksheet = workbook.Worksheets[1];
+            int startRow = 4;
+
+
+            string xmlPath = filePath + @"\PlcTagTable_write.xml";
+            XmlWriter writer = XmlWriter.Create(xmlPath);
+
+            int idCounter = 0;
+            int spareCounter = 1;
+
+
+            writer.WriteStartDocument();
+            writer.WriteStartElement("Document");
+            writer.WriteStartElement("Engineering");
+            writer.WriteAttributeString("version", "V18");
+            writer.WriteEndElement();
+            writeXmlDocumentInfoTagTable(writer);
+
+            writer.WriteStartElement("SW.Tags.PlcTagTable");
+            writer.WriteAttributeString("ID", intToHex(idCounter));
+            idCounter++;
+
+            writer.WriteStartElement("AttributeList");
+            writer.WriteElementString("Name", fileName);
+            writer.WriteEndElement();
+
+
+            writer.WriteStartElement("ObjectList");
+            
+            int row = startRow;
+            while (worksheet.Cells[row, 4].Value != null)
+            {
+                writer.WriteStartElement("SW.Tags.PlcTag");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                idCounter++;
+                writer.WriteAttributeString("CompositionName", "Tags");
+                    writer.WriteStartElement("AttributeList");
+                        writer.WriteElementString("DataTypeName", "Bool");
+                        writer.WriteElementString("ExternalAccessible", "true");
+                        writer.WriteElementString("ExternalVisible", "true");
+                        writer.WriteElementString("ExternalWritable", "true");
+                        string address = worksheet.Cells[row,4].Value;
+                        address = "%" + address.Substring(1);
+                        writer.WriteElementString("LogicalAddress", address);
+                        string name = worksheet.Cells[row,9].Value;
+                        
+                        if(name == "Spare" || name == null)
+                            {
+                                name = "Spare" + spareCounter;
+                                spareCounter++;
+                            }
+                        writer.WriteElementString("Name", name);
+                writer.WriteEndElement();
+                writer.WriteStartElement("ObjectList");
+                    writer.WriteStartElement("MultilingualText");
+                    writer.WriteAttributeString("ID", intToHex(idCounter));
+                    idCounter++;
+                writer.WriteAttributeString("CompositionName", "Comment");
+                writer.WriteStartElement("ObjectList");
+                writer.WriteStartElement("MultilingualTextItem");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                idCounter++;
+                writer.WriteAttributeString("CompositionName", "Items");
+                writer.WriteStartElement("AttributeList");
+                writer.WriteElementString("Culture", "en-US");
+                writer.WriteElementString("Text", "");
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+                row++;
+            }
+
+            row = startRow;
+            
+            while (worksheet.Cells[row, 15].Value != null)
+            {
+                writer.WriteStartElement("SW.Tags.PlcTag");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                idCounter++;
+                writer.WriteAttributeString("CompositionName", "Tags");
+                writer.WriteStartElement("AttributeList");
+                writer.WriteElementString("DataTypeName", "Bool");
+                writer.WriteElementString("ExternalAccessible", "true");
+                writer.WriteElementString("ExternalVisible", "true");
+                writer.WriteElementString("ExternalWritable", "true");
+                string address = worksheet.Cells[row, 15].Value;
+                lastOutputAddress++;
+                
+                address = "%Q" + address.Substring(2);
+                writer.WriteElementString("LogicalAddress", address);
+                string name = worksheet.Cells[row, 18].Value;
+                if (name == "Spare" || name == "")
+                {
+                    name = "Spare" + spareCounter;
+                    spareCounter++;
+                }
+                writer.WriteElementString("Name", name);
+                writer.WriteEndElement();
+                writer.WriteStartElement("ObjectList");
+                writer.WriteStartElement("MultilingualText");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                idCounter++;
+                writer.WriteAttributeString("CompositionName", "Comment");
+                writer.WriteStartElement("ObjectList");
+                writer.WriteStartElement("MultilingualTextItem");
+                writer.WriteAttributeString("ID", intToHex(idCounter));
+                idCounter++;
+                writer.WriteAttributeString("CompositionName", "Items");
+                writer.WriteStartElement("AttributeList");
+                writer.WriteElementString("Culture", "en-US");
+                writer.WriteElementString("Text", "");
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+                row++;
+            }
+            
+
+            writer.WriteEndElement();
 
 
 
 
 
+            writer.WriteEndElement();
+            writer.WriteEndDocument();
+            writer.Flush();
+            writer.Close();
+
+
+            lastOutputAddress = lastOutputAddress / 8;
+        }
+
+        public void importPlcModules(string fileName)
+        {
+            Console.WriteLine(filePath);
+            string path = filePath + "\\" + fileName + ".xlsx";
+            Microsoft.Office.Interop.Excel.Application excel = new Microsoft.Office.Interop.Excel.Application();
+            Workbook workbook = excel.Workbooks.Open(path);
+            Worksheet worksheet = workbook.Worksheets[1];
+            int startRow = 4;
+            Console.WriteLine("Input Modules");
+            int row = startRow;
+            Console.WriteLine("Last Output Address: " + lastOutputAddress);
+
+            List<string> modules = new List<string>();
+            int numRows = 1;
+
+            while(worksheet.Cells[row, 4].Value != null)
+            {
+                numRows = 1;
+                if(worksheet.Cells[row, 2].Value!= null)
+                {
+                    Console.WriteLine(worksheet.Cells[row, 2].Value);
+                    numRows = addPlcModule(worksheet.Cells[row, 2].Value);
+                    
+                }
+
+                row = row + numRows;
+            }
+
+            Console.WriteLine("Output Modules");
+            row = startRow;
+            while (worksheet.Cells[row, 15].Value != null)
+            {
+                numRows = 1;
+                if (worksheet.Cells[row, 13].Value != null)
+                {
+                    Console.WriteLine(worksheet.Cells[row, 13].Value);
+                    numRows = addPlcModule(worksheet.Cells[row, 13].Value);
+                    
+                }
+
+                row = row + numRows;
+            }
+
+
+
+            
+
+
+            
+        }
+
+        public int addPlcModule(string code)
+        {
+            int numRows = 0 ;
+            if(code == "6ES7136-6BA01-0CA0 (8 F-DI)")
+            {
+                
+                
+                
+
+                
+                var device = plcDevice.DeviceItems[0].PlugNew("OrderNumber:6ES7 136-6BA01-0CA0/V2.0", "F-DI 8x24VDC HF_" + numInput8Modules, numModules + 2);
+
+                device.DeviceItems[0].Addresses[1].StartAddress = lastOutputAddress + 16 + (numInput8Modules) * 5;
+                
+
+                
+
+                numInput8Modules++;
+                numModules++;
+                Console.WriteLine("Module " + numModules + "Added");
+                numRows = 16;
+            }else if (code == "6ES7131-6BH01-0BA0 (16DI)")
+            {
+                Console.WriteLine(plcDevice.DeviceItems[0].PlugNew("OrderNumber:6ES7 131-6BH01-0BA0/V0.0", "DI 16x24VDC ST_"+numInput16Modules, numModules + 2));
+                numInput16Modules++;
+                numModules++;
+                Console.WriteLine("Module " + numModules + "Added");
+                numRows = 32;
+            }else if (code == "6ES7136-6DC00-0CA0 (8 F-DO)")
+            {
+                Console.WriteLine(plcDevice.DeviceItems[0].PlugNew("OrderNumber:6ES7 136-6DC00-0CA0/V1.0", "F-DQ 8x24VDC/0.5A PP HF_"+numOutput8Modules, numModules + 2));
+                numOutput8Modules++;
+                numModules++;
+                Console.WriteLine("Module " + numModules + "Added");
+                numRows = 16;
+            }else if (code == "6ES7132-6BH01-0BA0 (16DO)")
+            {
+                Console.WriteLine(plcDevice.DeviceItems[0].PlugNew("OrderNumber:6ES7 132-6BH01-0BA0/V0.0", "DQ 16x24VDC/0.5A ST_"+numOutput16Modules, numModules + 2));
+                numOutput16Modules++;
+                numModules++;
+                Console.WriteLine("Module " + numModules + "Added");
+                numRows = 32;
+            }
+            else
+            {
+                return 8;
+            }
+
+            return numRows;
+        }
+        #endregion
 
 
     }
