@@ -99,6 +99,8 @@ namespace OpenessTIA
         public static int numeroDBs = 0;
         //Número de Functions Total
         public static int numeroFCs = 0;
+        public static int numeroScreens = 0;
+        public static int numeroMainBlocks = 0;
         //Subnet da HMI e PLC
         public static Subnet subnet;
         //Global Library Importada
@@ -767,7 +769,7 @@ namespace OpenessTIA
 
                         for(int i = 0; i < listaCilindros.Count(); i++)
                         {
-                            if(block.Name == listaCilindros[i].getName())
+                            if(block.Name == "DB " + listaCilindros[i].getName() + " - "+ listaCilindros[i].getNest())
                             {
                                 numeroDBsCylinder++;
                             }
@@ -789,25 +791,87 @@ namespace OpenessTIA
         {
             numeroFCs = 0;
 
-            foreach (PlcBlock block in plcSoftware.BlockGroup.Groups.Find("FCs").Blocks)
+            
+
+            var plcFolder = plcSoftware.BlockGroup.Groups;
+
+
+            foreach (PlcBlock block in plcSoftware.BlockGroup.Blocks)
             {
-                if(block is FC)
+                if (block is FC)
                 {
                     numeroFCs++;
+
+
+
                 }
-                
             }
 
-            foreach (PlcBlock block in plcSoftware.BlockGroup.Groups.Find("FCs").Blocks)
+            foreach (PlcBlockGroup stationGroup in plcFolder)
             {
-                if(block is FC)
+                foreach (PlcBlock block in stationGroup.Blocks)
                 {
+                    if(block is FC)
                     numeroFCs++;
+
+
                 }
-                
+
             }
 
             Console.WriteLine("Numero de FC's: "+ numeroFCs);
+        }
+
+
+        public void countScreens()
+        {
+            int numScreens = 0;
+            ScreenUserFolderComposition hmiFolder = hmiTarget.ScreenFolder.Folders;
+
+            foreach(ScreenUserFolder folder in hmiFolder)
+            {
+                
+                foreach(Screen screen in folder.Screens)
+                {
+                    numScreens++;
+                }
+            }
+           
+            numeroScreens = numScreens;
+            Console.WriteLine("Numero de Screens: " + numeroScreens);
+        }
+
+        public void countMains()
+        {
+            int numMains = 0;
+            var plcFolder = plcSoftware.BlockGroup.Groups;
+
+
+            foreach (PlcBlock block in plcSoftware.BlockGroup.Blocks)
+            {
+                if (block is OB)
+                {
+                    numMains++;
+
+
+
+                }
+            }
+
+            foreach (PlcBlockGroup stationGroup in plcFolder)
+            {
+                foreach (PlcBlock block in stationGroup.Blocks)
+                {
+                    if (block is OB)
+                        numMains++;
+
+
+                }
+
+            }
+
+            numeroMainBlocks = numMains;
+            Console.WriteLine("Numero de Main Blocks: " + numeroMainBlocks);
         }
 
         //Importa a Global Library com Faceplates UDts e Fb's da Controlar 
@@ -1015,7 +1079,7 @@ namespace OpenessTIA
         }
 
         //Importa DataBlocks da Global Library. Para Datablocks de Objetos funciona.(Por algum motivo avança um número de datablock, por isso usar esta função por último)
-        public int getDataBlockFromLibrary(List<Cilindro> listaCilindros, string dbNameInsert = "Cilindro", string dbName = "Cylinder")
+        public int getDataBlockFromLibrary(List<Cilindro> listaCilindros, string dbName = "Cylinder")
         {
             int existeFolder = 0;
             int numCopies = globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies.Count;
@@ -1025,7 +1089,7 @@ namespace OpenessTIA
 
             for(int i = 0; i < numCopies; i++)
             {
-                if(globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies[i].Name == dbName)
+                if (globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies[i].Name == dbName)
                 {
                     existeCopia = true;
                 }
@@ -1044,7 +1108,7 @@ namespace OpenessTIA
                 {
                     for (int i = 0; i < numBlockFolders; i++)
                     {
-                        if (plcFolder[i].Name == "DataBlocks")
+                        if (plcFolder[i].Name == listaCilindros[0].getStation())
                         {
                             existeFolder = 1;
                         }
@@ -1053,14 +1117,14 @@ namespace OpenessTIA
 
                 if (existeFolder == 0)
                 {
-                    plcFolder.Create("DataBlocks");
+                    plcFolder.Create(listaCilindros[0].getStation());
                     Console.WriteLine("--->Folder DataBlocks Created");
                 }
 
                 foreach (PlcBlockUserGroup group in plcFolder)
                 {
                     
-                    if (group.Name == "DataBlocks")
+                    if (group.Name == listaCilindros[0].getStation())
                     {
                         
 
@@ -1080,7 +1144,7 @@ namespace OpenessTIA
                             group.Blocks.CreateFrom(masterCopySource);
                             var db = group.Blocks.Find(masterCopySource.Name) as DataBlock;
 
-                            changeDataBlock(db, listaCilindros[j].getName(), listaCilindros);
+                            changeDataBlock(db, "DB " + listaCilindros[j].getName() + " - " +listaCilindros[j].getNest(), listaCilindros);
 
 
                             Console.WriteLine("Block " + group.Blocks.Last().Name + " Created in folder " + group.Name);
@@ -1110,15 +1174,22 @@ namespace OpenessTIA
             bool existe = false;
             List<string> stations = getStations(listaCilindros);
 
-            for(int i = 0; i < listaCilindros.Count(); i++)
+            for(int i = 0; i < stations.Count(); i++)
             {
-                for(int j = 0; j < stations.Count();j++)
+                List<Cilindro> listCylAux = new List<Cilindro>();
+
+                for(int j = 0; j < listaCilindros.Count(); j++)
                 {
-                    if (stations[j] == listaCilindros[i].getStation())
+                    Cilindro auxCyl = new Cilindro(listaCilindros[j].getName(), listaCilindros[j].getStation(), listaCilindros[j].getNest());
+
+                    if (stations[i] == listaCilindros[j].getStation())
                     {
-                        listas[j].Add(listaCilindros[i]);
+
+                        listCylAux.Add(auxCyl);
                     }
                 }
+
+                listas.Add(listCylAux);
             }
 
 
@@ -1397,26 +1468,26 @@ namespace OpenessTIA
             
         }
         //Importa XML do Main
-        public void changeMain()
+        public void importMain(string stationName)
         {
-            var plcFolder = plcSoftware.BlockGroup.Groups;
+            var plcFolder = plcSoftware.BlockGroup.Groups.Find(stationName);
 
 
-            var mainBlock = plcSoftware.BlockGroup.Blocks;
+            
             string path = filePath + @"\Main_write.xml";
             FileInfo info = new FileInfo(string.Format(path));
 
-            mainBlock.Import(info, ImportOptions.Override);
+            plcFolder.Blocks.Import(info, ImportOptions.Override);
 
             Console.WriteLine("Main Block Imported");
 
         }
         //Importa XML de uma Screen
-        public void importScreen()
+        public void importScreen(string stationName)
         {
             string path = filePath + @"\Screen_write.xml";
             FileInfo file = new FileInfo(string.Format(path));
-            hmiTarget.ScreenFolder.Folders[0].Screens.Import(file, ImportOptions.Override);
+            hmiTarget.ScreenFolder.Folders.Find(stationName).Screens.Import(file, ImportOptions.Override);
             
             Console.WriteLine("Screen Imported");
         }
@@ -1719,7 +1790,7 @@ namespace OpenessTIA
 
         }
         //**Escreve o documento em XML de uma DB de Cilindro
-        public void writeXmlfileDBCylinder(string dbName, List<Cilindro> listaCilindros)
+        public void writeXmlfileDBCylinder( List<Cilindro> listaCilindros)
         {
 
             string path = filePath + @"\Cylinders_DB_write.xml";
@@ -1777,7 +1848,8 @@ namespace OpenessTIA
                             writer.WriteElementString("MemoryLayout", "Optimized");
                             writer.WriteElementString("MemoryReserve", "100");
                             writeXmlElementWithattribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writer.WriteElementString("Name", dbName);
+            string dbName = "DB " + listaCilindros[0].getStation();
+            writer.WriteElementString("Name", dbName);
                             writer.WriteElementString("Namespace", "");
                             countDataBlocks(listaCilindros);
                             
@@ -1862,60 +1934,96 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //Escreve todas as Wires da FC
-        public void writeXmlWires(XmlWriter writer)
+        public void writeXmlWires(XmlWriter writer, int callUid)
         {
             writer.WriteStartElement("Wire");
                 writer.WriteAttributeString("UId", "42");
                 writer.WriteStartElement("Powerrail");
                 writer.WriteEndElement();
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", "30");
                 writer.WriteAttributeString("Name", "en");
                 writer.WriteEndElement();
             writer.WriteEndElement();
 
 
-            writeXmlSingleWire(writer, 43, 28, 26, "name");
-            writeXmlSingleWire(writer, 44, 29, 26, "enableHome");
-            writeXmlSingleWire(writer, 45, 30, 26, "enableWork");
-            writeXmlSingleWire(writer, 46, 31, 26, "doorOpen");
-            writeXmlSingleWire(writer, 47, 32, 26, "manualMode");
-            writeXmlSingleWire(writer, 48, 33, 26, "reset");
+            writeXmlSingleWire(writer, 43, 32, callUid, "name");
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "49");
+            writer.WriteAttributeString("UId", "44");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "21");
             writer.WriteEndElement();
             writer.WriteStartElement("NameCon");
-            writer.WriteAttributeString("UId", "26");
+            writer.WriteAttributeString("UId", callUid.ToString());
+            writer.WriteAttributeString("Name", "enableHome");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "45");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "22");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", callUid.ToString());
+            writer.WriteAttributeString("Name", "enableWork");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writeXmlSingleWire(writer, 46, 33, callUid, "doorOpen");
+            writeXmlSingleWire(writer, 47, 34, callUid, "manualMode");
+            writeXmlSingleWire(writer, 48, 35, callUid, "reset");
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "49");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "23");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", callUid.ToString());
             writer.WriteAttributeString("Name", "iHome");
             writer.WriteEndElement();
             writer.WriteEndElement();
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "50");
             writer.WriteStartElement("IdentCon");
-            writer.WriteAttributeString("UId", "22");
+            writer.WriteAttributeString("UId", "24");
             writer.WriteEndElement();
             writer.WriteStartElement("NameCon");
-            writer.WriteAttributeString("UId", "26");
+            writer.WriteAttributeString("UId", callUid.ToString());
             writer.WriteAttributeString("Name", "iWork");
             writer.WriteEndElement();
             writer.WriteEndElement();
-            writeXmlSingleWire(writer, 51, 34, 26, "orderHome");
-            writeXmlSingleWire(writer, 52, 35, 26, "orderWork");
-            writeXmlSingleWire(writer, 53, 36, 26, "doesNotRetainOutput");
-            writeXmlSingleWire(writer, 54, 37, 26, "timeFilterHome");
-            writeXmlSingleWire(writer, 55, 38, 26, "timeFilterWork");
-            writeXmlSingleWire(writer, 56, 39, 26, "timeTimeout");
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "51");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "25");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", callUid.ToString());
+            writer.WriteAttributeString("Name", "orderHome");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "52");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "26");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", callUid.ToString());
+            writer.WriteAttributeString("Name", "orderWork");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+            writeXmlSingleWire(writer, 53, 36, callUid, "doesNotRetainOutput");
+            writeXmlSingleWire(writer, 54, 37, callUid, "timeFilterHome");
+            writeXmlSingleWire(writer, 55, 38, callUid, "timeFilterWork");
+            writeXmlSingleWire(writer, 56, 39, callUid, "timeTimeout");
 
 
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "57");
                 writer.WriteStartElement("IdentCon");
-                writer.WriteAttributeString("UId", "23");
+                writer.WriteAttributeString("UId", "27");
                 writer.WriteEndElement();
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "Cylinder");
                 writer.WriteEndElement();
             writer.WriteEndElement();
@@ -1925,22 +2033,22 @@ namespace OpenessTIA
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "58");
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "outputHome");
                 writer.WriteEndElement();
                 writer.WriteStartElement("IdentCon");
-                writer.WriteAttributeString("UId", "24");
+                writer.WriteAttributeString("UId", "28");
                 writer.WriteEndElement();
             writer.WriteEndElement();
 
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "59");
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "outputWork");
                 writer.WriteEndElement();
                 writer.WriteStartElement("IdentCon");
-                writer.WriteAttributeString("UId", "25");
+                writer.WriteAttributeString("UId", "29");
                 writer.WriteEndElement();
             writer.WriteEndElement();
 
@@ -1948,7 +2056,7 @@ namespace OpenessTIA
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "60");
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "errorTimeoutWork");
                 writer.WriteEndElement();
                 writer.WriteStartElement("OpenCon");
@@ -1960,7 +2068,7 @@ namespace OpenessTIA
             writer.WriteStartElement("Wire");
             writer.WriteAttributeString("UId", "61");
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "26");
+                writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "errorTimeoutHome");
                 writer.WriteEndElement();
                 writer.WriteStartElement("OpenCon");
@@ -2005,22 +2113,34 @@ namespace OpenessTIA
                                 //Start Parts
                                 writer.WriteStartElement("Parts");
 
+
                 writer.WriteStartElement("Access");
                 writer.WriteAttributeString("Scope", "GlobalVariable");
                 writer.WriteAttributeString("UId", "21");
                 writer.WriteStartElement("Symbol");
                 writer.WriteStartElement("Component");
-                nameAttribute = "iCyl" + listaCilindros[i] + "Home";
+                nameAttribute = "DB " + listaCilindros[i].getStation();
                 writer.WriteAttributeString("Name", nameAttribute);
                 writer.WriteEndElement();
-                
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Enable");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "home");
+                writer.WriteEndElement();
+
 
                 writer.WriteStartElement("Address");
-                writer.WriteAttributeString("Area", "Input");
+                writer.WriteAttributeString("Area", "None");
                 writer.WriteAttributeString("Type", "Bool");
-                
-                
-                writer.WriteAttributeString("BitOffset", (130+i*2).ToString());
+                string dbName = "DB " + listaCilindros[i].getStation();
+                string blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (464  + i * 568).ToString());
                 writer.WriteAttributeString("Informative", "true");
 
                 writer.WriteEndElement();
@@ -2033,7 +2153,64 @@ namespace OpenessTIA
                 writer.WriteAttributeString("UId", "22");
                 writer.WriteStartElement("Symbol");
                 writer.WriteStartElement("Component");
-                nameAttribute = "iCyl" + listaCilindros[i] + "Work";
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Enable");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "work");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (472 + i * 568).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "23");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "iCyl" + listaCilindros[i].getName() + "Home";
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "Input");
+                writer.WriteAttributeString("Type", "Bool");
+                
+                
+                writer.WriteAttributeString("BitOffset", (130  + i*2).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "24");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "iCyl" + listaCilindros[i].getName() + "Work";
                 writer.WriteAttributeString("Name", nameAttribute);
                 writer.WriteEndElement();
 
@@ -2041,9 +2218,77 @@ namespace OpenessTIA
                 writer.WriteStartElement("Address");
                 writer.WriteAttributeString("Area", "Input");
                 writer.WriteAttributeString("Type", "Bool");
-                
-                
+
+
                 writer.WriteAttributeString("BitOffset", (131 + i * 2).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "25");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Order");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "home");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (480  + (i * 568)).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "26");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Order");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "work");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (488 + (i * 568)).ToString());
                 writer.WriteAttributeString("Informative", "true");
 
                 writer.WriteEndElement();
@@ -2053,10 +2298,10 @@ namespace OpenessTIA
 
                 writer.WriteStartElement("Access");
                                     writer.WriteAttributeString("Scope", "GlobalVariable");
-                                    writer.WriteAttributeString("UId", "23");
+                                    writer.WriteAttributeString("UId", "27");
                                         writer.WriteStartElement("Symbol");
                                             writer.WriteStartElement("Component");
-                                            writer.WriteAttributeString("Name", "Cylinders_DB");
+                                            writer.WriteAttributeString("Name","DB " +listaCilindros[i].getStation());
                                             writer.WriteEndElement();
                                             numCilindroString = listaCilindros[i].getName();
                                             writer.WriteStartElement("Component");
@@ -2065,7 +2310,8 @@ namespace OpenessTIA
                                             writer.WriteStartElement("Address");
                                             writer.WriteAttributeString("Area", "None");
                                             writer.WriteAttributeString("Type", "CTRL_Cylinder");
-                                            string blockNumber = plcSoftware.BlockGroup.Groups.Find("DataBlocks").Blocks.Find("Cylinders_DB").Number.ToString();
+                dbName = "DB " + listaCilindros[i].getStation();
+                                            blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
                                             writer.WriteAttributeString("BlockNumber", blockNumber);
                                             writer.WriteAttributeString("BitOffset", bitOffset);
                                             writer.WriteAttributeString("Informative", "true");
@@ -2077,10 +2323,10 @@ namespace OpenessTIA
 
                 writer.WriteStartElement("Access");
                 writer.WriteAttributeString("Scope", "GlobalVariable");
-                writer.WriteAttributeString("UId", "24");
+                writer.WriteAttributeString("UId", "28");
                 writer.WriteStartElement("Symbol");
                 writer.WriteStartElement("Component");
-                nameAttribute = "qCyl" + listaCilindros[i] + "Home";
+                nameAttribute = "qCyl" + listaCilindros[i].getName() + "Home";
                 writer.WriteAttributeString("Name", nameAttribute);
                 writer.WriteEndElement();
 
@@ -2090,7 +2336,7 @@ namespace OpenessTIA
                 writer.WriteAttributeString("Type", "Bool");
 
 
-                writer.WriteAttributeString("BitOffset", (305 + i * 2).ToString());
+                writer.WriteAttributeString("BitOffset", (376 + i * 2).ToString());
                 writer.WriteAttributeString("Informative", "true");
 
                 writer.WriteEndElement();
@@ -2100,10 +2346,10 @@ namespace OpenessTIA
 
                 writer.WriteStartElement("Access");
                 writer.WriteAttributeString("Scope", "GlobalVariable");
-                writer.WriteAttributeString("UId", "25");
+                writer.WriteAttributeString("UId", "29");
                 writer.WriteStartElement("Symbol");
                 writer.WriteStartElement("Component");
-                nameAttribute = "qCyl" + listaCilindros[i] + "Work";
+                nameAttribute = "qCyl" + listaCilindros[i].getName() + "Work";
                 writer.WriteAttributeString("Name", nameAttribute);
                 writer.WriteEndElement();
 
@@ -2113,7 +2359,7 @@ namespace OpenessTIA
                 writer.WriteAttributeString("Type", "Bool");
 
 
-                writer.WriteAttributeString("BitOffset", (306 + i * 2).ToString());
+                writer.WriteAttributeString("BitOffset", (377 + i * 2).ToString());
                 writer.WriteAttributeString("Informative", "true");
 
                 writer.WriteEndElement();
@@ -2121,8 +2367,146 @@ namespace OpenessTIA
                 writer.WriteEndElement();
 
 
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "30");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Enable");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "home");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (464 + (i * 568)).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "31");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Enable");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "work");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (472 + (i * 568)).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "32");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Order");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "home");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (480 + (i * 568)).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Access");
+                writer.WriteAttributeString("Scope", "GlobalVariable");
+                writer.WriteAttributeString("UId", "33");
+                writer.WriteStartElement("Symbol");
+                writer.WriteStartElement("Component");
+                nameAttribute = "DB " + listaCilindros[i].getStation();
+                writer.WriteAttributeString("Name", nameAttribute);
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", listaCilindros[i].getName());
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "Order");
+                writer.WriteEndElement();
+                writer.WriteStartElement("Component");
+                writer.WriteAttributeString("Name", "work");
+                writer.WriteEndElement();
+
+
+                writer.WriteStartElement("Address");
+                writer.WriteAttributeString("Area", "None");
+                writer.WriteAttributeString("Type", "Bool");
+                dbName = "DB " + listaCilindros[i].getStation();
+                blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find(dbName).Number.ToString();
+                writer.WriteAttributeString("BlockNumber", blockNumber);
+
+                writer.WriteAttributeString("BitOffset", (488 + (i * 568)).ToString());
+                writer.WriteAttributeString("Informative", "true");
+
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+                writer.WriteEndElement();
+
+                int callUid = 34;
                 writer.WriteStartElement("Call");
-                                    writer.WriteAttributeString("UId", "26");
+                                    writer.WriteAttributeString("UId", callUid.ToString());
                                         writer.WriteStartElement("CallInfo");
                                         writer.WriteAttributeString("Name", "FB_Cylinder");
                                         writer.WriteAttributeString("BlockType", "FB");
@@ -2131,14 +2515,14 @@ namespace OpenessTIA
                                             writeXmlElementWithTwoattributes("DateAttribute", "2024-07-16T16:22:51", "Name", "ParameterModifiedTS",  "Informative", "true", writer);
                                                 writer.WriteStartElement("Instance");
                                                 writer.WriteAttributeString("Scope", "GlobalVariable");
-                                                writer.WriteAttributeString("UId", "27");
-                                                    numCilindroString = listaCilindros[i].getName();
+                                                writer.WriteAttributeString("UId", (callUid+1).ToString());
+                                                    numCilindroString = "DB " + listaCilindros[i].getName() + " - " + listaCilindros[i].getNest() ;
                                                     writer.WriteStartElement("Component");
                                                     writer.WriteAttributeString("Name", numCilindroString);
                                                     writer.WriteEndElement();
                                                     
                                                     writer.WriteStartElement("Address");
-                                                    blockNumber = plcSoftware.BlockGroup.Groups.Find("DataBlocks").Blocks.Find(numCilindroString).Number.ToString("");
+                                                    blockNumber = plcSoftware.BlockGroup.Groups.Find(listaCilindros[i].getStation()).Blocks.Find("DB " + listaCilindros[i].getName() + " - " + listaCilindros[i].getNest()).Number.ToString();
                                                     writer.WriteAttributeString("Area", "DB");
                                                     writer.WriteAttributeString("Type", "FB_Cylinder");
                                                     writer.WriteAttributeString("BlockNumber", blockNumber);
@@ -2168,7 +2552,29 @@ namespace OpenessTIA
 
                                             writer.WriteEndElement();
                                     writer.WriteEndElement();
-                                    writer.WriteEndElement();
+
+
+                        writer.WriteStartElement("Part");
+                            writer.WriteAttributeString("Name", "Coil");
+                            writer.WriteAttributeString("UId", "36");
+
+                        writer.WriteEndElement();
+                                        writer.WriteStartElement("Part");
+                            writer.WriteAttributeString("Name", "Coil");
+                            writer.WriteAttributeString("UId", "37");
+
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("Part");
+                        writer.WriteAttributeString("Name", "Coil");
+                        writer.WriteAttributeString("UId", "38");
+
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("Part");
+                        writer.WriteAttributeString("Name", "Coil");
+                        writer.WriteAttributeString("UId", "39");
+
+                        writer.WriteEndElement();
+                writer.WriteEndElement();
                                     
                                     
                                 
@@ -2177,7 +2583,7 @@ namespace OpenessTIA
 
                                 //Start Wires
                                 writer.WriteStartElement("Wires");
-                                writeXmlWires(writer);
+                                writeXmlWires(writer, callUid);
                                     
                                 //writeXmlWire();
                                     
@@ -2279,7 +2685,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //**Escreve o documento em XML de uma FC de Cilindro
-        public void writeXmlFileFcCylinder(List<Cilindro> listaCilindros, string fcName)
+        public void writeXmlFileFcCylinder(List<Cilindro> listaCilindros)
         {
             string path = filePath + @"\FC_write.xml";
             FileInfo info = new FileInfo(string.Format(path));
@@ -2323,7 +2729,7 @@ namespace OpenessTIA
                             writeXmlElementWithattribute("LibraryConformanceStatus", "Error: The block contains calls of single instances. Warning: The object contains access to global data blocks.", "ReadOnly", "true", writer);
                             writer.WriteElementString("MemoryLayout", "Optimized");
                             writeXmlElementWithattribute("ModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
-                            writer.WriteElementString("Name", fcName);
+                            writer.WriteElementString("Name", listaCilindros[0].getStation());
                             writer.WriteElementString("Namespace", "");
                             string fcNumberString = (numeroFCs +1).ToString();
                             writer.WriteElementString("Number", fcNumberString);
@@ -2432,7 +2838,7 @@ namespace OpenessTIA
                         writer.WriteElementString("FaceplateTypeName", "HMI@$@Cylinder V 0.1.36");
                         writer.WriteElementString("Height","137");
                         writer.WriteElementString("Left", left);
-                        string nameFP = listaCilindros[i].getName();
+                        string nameFP = listaCilindros[i].getName() + " - " +listaCilindros[i].getNest();
                         writer.WriteElementString("ObjectName",nameFP );
                         writer.WriteElementString("Resizing", "FixedSize");
                         writer.WriteElementString("TabIndex", (i+1).ToString());
@@ -2462,7 +2868,7 @@ namespace OpenessTIA
                                     writer.WriteStartElement("LinkList");
                                         writer.WriteStartElement("Tag");
                                         writer.WriteAttributeString("TargetID", "@OpenLink");
-                                            string cilindroAlvo =  listaCilindros[i].getName();
+                                            string cilindroAlvo = listaCilindros[i].getName();
                                             writer.WriteElementString("Name", cilindroAlvo);
                                         writer.WriteEndElement();
                                     writer.WriteEndElement();
@@ -2480,7 +2886,7 @@ namespace OpenessTIA
 
             return idCounter;
         }
-        public void writeXmlFileScreenCylinder(List<Cilindro> listaCilindros, string name, string templateName = "Template")
+        public void writeXmlFileScreenCylinder(List<Cilindro> listaCilindros, string templateName = "Template")
         {
 
 
@@ -2488,7 +2894,7 @@ namespace OpenessTIA
             XmlWriter writer = XmlWriter.Create(path);
 
             int idCounter = 0;
-
+            countScreens();
             writer.WriteStartDocument();
                 writer.WriteStartElement("Document");
                     writer.WriteStartElement("Engineering");
@@ -2507,8 +2913,10 @@ namespace OpenessTIA
                             writer.WriteElementString("BackColor", "182, 182, 182");
                             writer.WriteElementString("GridColor", "0, 0, 0");
                             writer.WriteElementString("Height", "800");
-                            writer.WriteElementString("Name", name);
-                            writer.WriteElementString("Number", "1");
+           
+                            writer.WriteElementString("Name", "Screen " + listaCilindros[0].getStation());
+                            
+            writer.WriteElementString("Number", (numeroScreens + 1).ToString());
                             writer.WriteElementString("Visible", "true");
                             writer.WriteElementString("Width", "1280");
                         writer.WriteEndElement();
@@ -2588,12 +2996,257 @@ namespace OpenessTIA
         #endregion
 
 
-        
 
+        #region Escrita do Documento XML de um Main Block de Cilindros
+
+
+        public void writeXmlFileMainBlockCylinder(List<Cilindro> listaCilindros)
+        {
+            string path = filePath + @"\Main_write.xml";
+            FileInfo info = new FileInfo(string.Format(path));
+
+            countMains();
+            XmlWriter writer = XmlWriter.Create(path);
+
+
+            writer.WriteStartDocument();
+
+            writer.WriteStartElement("Document");
+            writer.WriteStartElement("Engineering");
+            writer.WriteAttributeString("version", "V18");
+            writer.WriteEndElement();
+            writeXmlDocumentInfo(writer);
+                writer.WriteStartElement("SW.Blocks.OB");
+                writer.WriteAttributeString("ID", "0");
+                //Start Attribute List
+                writer.WriteStartElement("AttributeList");
+                writer.WriteElementString("AutoNumber", "true");
+                writeXmlElementWithattribute("CodeModifiedDate", "2025-05-20T11:11:23.7769785Z", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("CompileDate", "2025-05-20T11:11:36.0275015Z", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("ConstantName", "OB_Main_" + listaCilindros[0].getStation(), "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("CreationDate", "2025-05-20T11:10:07.7972953Z", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("EventClass", "Program cycle", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("HandleErrorsWithinBlock", "false", "ReadOnly", "true", writer);
+                writer.WriteElementString("HeaderAuthor", "");
+                writer.WriteElementString("HeaderFamily", "");
+                writer.WriteElementString("HeaderName", "");
+                writer.WriteElementString("HeaderVersion", "0.1");
+                //Start Interface
+                writer.WriteStartElement("Interface");
+                    writer.WriteStartElement("Sections", "http://www.siemens.com/automation/Openness/SW/Interface/v5");
+                        writer.WriteAttributeString("xmlns", "http://www.siemens.com/automation/Openness/SW/Interface/v5");
+                        writer.WriteStartElement("Section");
+                        writer.WriteAttributeString("Name", "Input");
+                            writer.WriteStartElement("Member");
+                            writer.WriteAttributeString("Name", "Initial_Call");
+                            writer.WriteAttributeString("Datatype", "Bool");
+                            writer.WriteAttributeString("Accessibility", "Public");
+                            writer.WriteAttributeString("Informative", "true");
+                                writer.WriteElementString("AttributeList", "");
+                                writer.WriteStartElement("Comment");
+                                    writeXmlElementWithattribute("MultiLanguageText", "Initial call of this OB", "Lang", "en-US", writer);
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                            writer.WriteStartElement("Member");
+                            writer.WriteAttributeString("Name", "Remanence");
+                            writer.WriteAttributeString("Datatype", "Bool");
+                            writer.WriteAttributeString("Accessibility", "Public");
+                            writer.WriteAttributeString("Informative", "true");
+                                writer.WriteElementString("AttributeList", "");
+                                writer.WriteStartElement("Comment");
+                                    writeXmlElementWithattribute("MultiLanguageText", "True, if remanent data are available", "Lang", "en-US", writer);
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("Section");
+                        writer.WriteAttributeString("Name", "Temp");
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("Section");
+                        writer.WriteAttributeString("Name", "Constant");
+                        writer.WriteEndElement();
+                    writer.WriteEndElement();
+                writer.WriteEndElement();
+                //End Interface
+                writeXmlElementWithattribute("InterfaceModifiedDate", "2008-07-21T16:55:08.419547Z", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("IsConsistent", "true", "ReadOnly", "true", writer);
+                writer.WriteElementString("IsIECCheckEnabled", "false");
+                writeXmlElementWithattribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("IsWriteProtected", "false", "ReadOnly", "true", writer);
+                writer.WriteElementString("MemoryLayout", "Optimized");
+                writeXmlElementWithattribute("ModifiedDate", "2025-05-20T11:11:23.7769785Z", "ReadOnly", "true", writer);
+                writer.WriteElementString("Name", "Main_" + listaCilindros[0].getStation());
+                writer.WriteElementString("Namespace", "");
+                writer.WriteElementString("Number", (numeroMainBlocks + 123).ToString());
+                writeXmlElementWithattribute("ParameterModified", "2008-07-21T16:55:08.419547Z", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("PLCSimAdvancedSupport", "false", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("PriorityNumber", "1", "ReadOnly", "true", writer);
+                writeXmlElementWithattribute("ProcessImagePartNumber", "65535", "ReadOnly", "true", writer);
+                writer.WriteElementString("ProgrammingLanguage", "LAD");
+                writer.WriteElementString("SecondaryType", "ProgramCycle");
+                writer.WriteElementString("SetENOAutomatically", "false");
+                writeXmlElementWithattribute("StructureModified", "2008-07-21T16:55:08.419547Z", "ReadOnly", "true", writer);
+            writer.WriteEndElement();
+                //End Attribute List
+                //Start Object List
+
+                writer.WriteStartElement("ObjectList");
+                    writer.WriteStartElement("MultilingualText");
+                    writer.WriteAttributeString("ID", "1");
+                    writer.WriteAttributeString("CompositionName", "Comment");
+                        writer.WriteStartElement("ObjectList");
+                            writer.WriteStartElement("MultilingualTextItem");
+                            writer.WriteAttributeString("ID", "2");
+                            writer.WriteAttributeString("CompositionName", "Items");
+                                writer.WriteStartElement("AttributeList");
+                                writer.WriteElementString("Culture", "en-US");
+                                writer.WriteElementString("Text","");
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                        writer.WriteEndElement();
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("SW.Blocks.CompileUnit");
+                    writer.WriteAttributeString("ID", "3");
+                    writer.WriteAttributeString("CompositionName", "CompileUnits");
+                        writer.WriteStartElement("AttributeList");
+                            writer.WriteStartElement("NetworkSource");
+                                writer.WriteStartElement("FlgNet", "http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v4");
+                                writer.WriteAttributeString("xmlns", "http://www.siemens.com/automation/Openness/SW/NetworkSource/FlgNet/v4");
+                                    writer.WriteStartElement("Parts");
+                                        writer.WriteStartElement("Call");
+                                        writer.WriteAttributeString("UId", "21");
+                                            writer.WriteStartElement("CallInfo");
+                                                writer.WriteAttributeString("Name", listaCilindros[0].getStation());
+                                                writer.WriteAttributeString("BlockType", "FC");
+                                                writeXmlElementWithTwoattributes("IntegerAttribute", "1", "Name", "BlockNumber", "Informative", "true", writer);
+                                                writeXmlElementWithTwoattributes("DateAttribute", "2025-05-20T10:52:14", "Name", "ParameterModifiedTS", "Informative", "true", writer);
+                                                
+                                            writer.WriteEndElement();
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                    writer.WriteStartElement("Wires");
+                                        writer.WriteStartElement("Wire");
+                                        writer.WriteAttributeString("UId", "22");
+                                            writer.WriteElementString("Powerrail", "");
+                                            writer.WriteStartElement("NameCon");
+                                            writer.WriteAttributeString("UId", "21");
+                                            writer.WriteAttributeString("Name", "en");
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                            
+                        writer.WriteEndElement();
+            writer.WriteElementString("ProgrammingLanguage", "LAD");
+            writer.WriteEndElement();
+            writer.WriteStartElement("ObjectList");
+                            writer.WriteStartElement("MultilingualText");
+                            writer.WriteAttributeString("ID", "4");
+                            writer.WriteAttributeString("CompositionName", "Comment");
+                                writer.WriteStartElement("ObjectList");
+                                    writer.WriteStartElement("MultilingualTextItem");
+                                    writer.WriteAttributeString("ID", "5");
+                                    writer.WriteAttributeString("CompositionName", "Items");
+                                        writer.WriteStartElement("AttributeList");
+                                            writer.WriteElementString("Culture", "en-US");
+                                            writer.WriteElementString("Text", "");
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                            writer.WriteStartElement("MultilingualText");
+                            writer.WriteAttributeString("ID", "6");
+                            writer.WriteAttributeString("CompositionName", "Title");
+                                writer.WriteStartElement("ObjectList");
+                                    writer.WriteStartElement("MultilingualTextItem");
+                                    writer.WriteAttributeString("ID", "7");
+                                    writer.WriteAttributeString("CompositionName", "Items");
+                                        writer.WriteStartElement("AttributeList");
+                                            writer.WriteElementString("Culture", "en-US");
+                                            writer.WriteElementString("Text", "");
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                        writer.WriteEndElement();
+
+
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("SW.Blocks.CompileUnit");
+                    writer.WriteAttributeString("ID", "8");
+                    writer.WriteAttributeString("CompositionName", "CompileUnits");
+                        writer.WriteStartElement("AttributeList");
+                            writer.WriteElementString("NetworkSource", "");
+                            writer.WriteElementString("ProgrammingLanguage", "LAD");
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("ObjectList");
+                            writer.WriteStartElement("MultilingualText");
+                            writer.WriteAttributeString("ID", "9");
+                            writer.WriteAttributeString("CompositionName", "Comment");
+                                writer.WriteStartElement("ObjectList");
+                                    writer.WriteStartElement("MultilingualTextItem");
+                                    writer.WriteAttributeString("ID", "A");
+                                    writer.WriteAttributeString("CompositionName", "Items");
+                                        writer.WriteStartElement("AttributeList");
+                                            writer.WriteElementString("Culture", "en-US");
+                                            writer.WriteElementString("Text", "");
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                            writer.WriteStartElement("MultilingualText");
+                            writer.WriteAttributeString("ID", "B");
+                            writer.WriteAttributeString("CompositionName", "Title");
+                                writer.WriteStartElement("ObjectList");
+                                    writer.WriteStartElement("MultilingualTextItem");
+                                    writer.WriteAttributeString("ID", "C");
+                                    writer.WriteAttributeString("CompositionName", "Items");
+                                        writer.WriteStartElement("AttributeList");
+                                            writer.WriteElementString("Culture", "en-US");
+                                            writer.WriteElementString("Text", "");
+                                        writer.WriteEndElement();
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+                        writer.WriteEndElement();
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("MultilingualText");
+                        writer.WriteAttributeString("ID", "D");
+                        writer.WriteAttributeString("CompositionName", "Title");
+                            writer.WriteStartElement("ObjectList");
+                                writer.WriteStartElement("MultilingualTextItem");
+                                writer.WriteAttributeString("ID", "E");
+                                writer.WriteAttributeString("CompositionName", "Items");
+                                    writer.WriteStartElement("AttributeList");
+                                            writer.WriteElementString("Culture", "en-US");
+                                            writer.WriteElementString("Text", "Main Program Sweep (Cycle)");
+                                    writer.WriteEndElement();
+
+                                writer.WriteEndElement();
+                            writer.WriteEndElement();
+
+                        writer.WriteEndElement();
+                    writer.WriteEndElement();
+                writer.WriteEndElement();
+            writer.WriteEndElement();
+            writer.WriteEndDocument();
+            writer.Flush();
+            writer.Close();
+
+            Console.WriteLine("FC XML file Written ");
+
+
+
+        }
+
+
+        #endregion
 
 
         #region Escrita de um documento em XML de uma TagTable de HMI
-        
+
         //Escreve estruturas de elementos do Cilindro
         public int writeSingleIdTagTableObjectCylinderStructure(XmlWriter writer, int idCounter, string name)
         {
@@ -3061,7 +3714,7 @@ namespace OpenessTIA
                         writer.WriteEndElement();
                         writer.WriteStartElement("ControllerTag");
                         writer.WriteAttributeString("TargetID", "@OpenLink");
-                            string linkName = "Cylinders_DB." + listaCilindros[i];
+                            string linkName = "DB " + listaCilindros[i].getStation() + "." + listaCilindros[i].getName();
                             writer.WriteElementString("Name", linkName);
                         writer.WriteEndElement();
                         writer.WriteStartElement("DataType");
@@ -3218,66 +3871,76 @@ namespace OpenessTIA
                 bool qWork = false;
                 string station = "";
                 string nest = "";
-                
-                
-                row = startRow;
-                while (worksheet.Cells[row, 4].Value != null)
+
+                bool existe = false;
+                for(int j = 0; j < list.Count(); j++)
+                {
+                    if (list[j].name == listaCilindros[i].name)
+                    {
+                        existe = true;
+                    }
+                }
+
+                if (existe == false)
                 {
 
 
-                    if (value == "iCyl" + listaCilindros[i].getName() + "Home")
+
+                    row = startRow;
+                    while (worksheet.Cells[row, 4].Value != null)
                     {
-                         nest = listaCilindros[i].getNest();
-                         station = listaCilindros[i].getStation();
+                        value = worksheet.Cells[row, 11].Value;
+
+
+
+                        if (value == "iCyl" + listaCilindros[i].getName() + "Home")
+                        {
+                            nest = listaCilindros[i].getNest();
+                            station = listaCilindros[i].getStation();
 
                             iHome = true;
-                        
-                            
+
+
+                        }
+                        if (value == "iCyl" + listaCilindros[i].getName() + "Work")
+                        {
+                            iWork = true;
+                        }
+
+                        row++;
                     }
-                    if (value == "iCyl" + listaCilindros[i].getName() + "Work")
+
+                    row = startRow;
+                    while (worksheet.Cells[row, 17].Value != null)
                     {
-                        iWork = true;
+                        value = worksheet.Cells[row, 20].Value;
+                        if (value == "qCyl" + listaCilindros[i].getName() + "Home")
+                        {
+                            qHome = true;
+                        }
+                        if (value == "qCyl" + listaCilindros[i].getName() + "Work")
+                        {
+                            qWork = true;
+                        }
+
+                        row++;
                     }
 
-                    row++;
-                }
-
-                row = startRow;
-                while (worksheet.Cells[row, 17].Value != null)
-                {
-                    value = worksheet.Cells[row, 20].Value;
-                    if (value == "qCyl" + listaCilindros[i].getName() + "Home")
+                    if (iHome && iWork && qHome && qWork && existe == false)
                     {
-                        qHome = true;
+                        Cilindro insertCyllinder = new Cilindro(listaCilindros[i].getName(), station, nest);
+                        list.Add(insertCyllinder);
+                        Console.WriteLine(insertCyllinder.getName() + " Station: " + insertCyllinder.getStation() + " Nest: " + insertCyllinder.getNest() + " cumpre requisitos");
                     }
-                    if (value == "qCyl" + listaCilindros[i].getName() + "Work")
+                    else
                     {
-                        qWork = true;
+                        Console.WriteLine(listaCilindros[i].getName() + " não cumpre requisitos");
                     }
-
-                    row++;
                 }
-
-                if(iHome && iWork && qHome && qWork)
-                {
-                    Cilindro insertCyllinder = new Cilindro(listaCilindros[i].getName(), station, nest);
-                    list.Add(insertCyllinder);
-                    Console.WriteLine(insertCyllinder.getName() + " Station: " + insertCyllinder.getStation()+ " Nest: " + insertCyllinder.getNest() + " cumpre requisitos");
-                }
-                else
-                {
-                    Console.WriteLine(listaCilindros[i].getName() + " não cumpre requisitos");
-                }
-                
 
             }
 
-            
-
-            for(int i = 0; i < list.Count(); i++)
-            {
-                Console.WriteLine(list[i].getName() + " " + list[i].getStation() + " " + list[i].getNest());
-            }
+            excel.Workbooks.Close();
             return list;
 
         }
@@ -3324,10 +3987,7 @@ namespace OpenessTIA
 
 
 
-                    Cilindro auxCyl = new Cilindro(name, station, nest);
-
-
-                    Cilindro insertCylinder = auxCyl;
+                    Cilindro insertCylinder = new Cilindro(name, station, nest);
 
 
 
@@ -3341,10 +4001,6 @@ namespace OpenessTIA
                 row++;
             }
 
-            for(int i = 0; i < listaCilindros.Count(); i++)
-            {
-                Console.WriteLine(listaCilindros[i].getName() + listaCilindros[i].getStation() + listaCilindros[i].getNest());
-            }
 
             listaCilindros = verifyCylinders(fileName, listaCilindros);
             excel.Workbooks.Close();
@@ -3501,7 +4157,7 @@ namespace OpenessTIA
 
                 if (row == moduleRow)
                 {
-                    module = worksheet.Cells[moduleRow, 13].Value;
+                    module = worksheet.Cells[moduleRow, 15].Value;
 
                     
                     if (module == "6ES7136-6DC00-0CA0 (8 F-DO)")
@@ -3706,9 +4362,9 @@ namespace OpenessTIA
 
     public class Cilindro
     {
-        public static string name;
-        public static string station;
-        public static string nest;
+        public string name;
+        public string station;
+        public string nest;
 
         //Construtor
         public Cilindro(string nameString = "", string stationString = "", string nestString = "")
