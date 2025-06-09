@@ -165,14 +165,17 @@ namespace OpenessTIA
             //whitelist entry
             SetWhitelist(System.Diagnostics.Process.GetCurrentProcess().ProcessName, System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
 
+            //abrir o TIA Portal com ou sem user interface 
             if (guiTIA)
             {
+                //abrir com user interface
                 instTIA = new TiaPortal(TiaPortalMode.WithUserInterface);
                 if (instTIA == null) Console.WriteLine("Instance null inicio");
                 
             }
             else
             {
+                //abrir sem user interface
                 instTIA = new TiaPortal(TiaPortalMode.WithoutUserInterface);
                 if (instTIA == null) Console.WriteLine("Instance null inicio");
             }
@@ -185,6 +188,7 @@ namespace OpenessTIA
             Console.WriteLine(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
 
             if (instTIA == null) Console.WriteLine("Instance null");
+            //Verifica se o ficheiro com o nome do projeto existe
             FileInfo file = new FileInfo(String.Format(projectPath + "\\" + projectName + "\\" + projectName + ".ap18"));
             bool existe = file.Exists;
 
@@ -206,10 +210,14 @@ namespace OpenessTIA
                 targetDirectory.Create();
                 string dirName;
 
+                //Cópia dos ficheiros do Diretório do "templateProject"
+                
 
+                //FileInfo com o caminho do diretório do templateProject e copia-o com o nome do projeto a ser criado
                 FileInfo fileInfo = new FileInfo(string.Format(sourcePath + "\\" + "templateProject.ap18"));
                 fileInfo.CopyTo(projectPath + "\\" + projectName + "\\" + projectName + ".ap18");
                 //
+
                 DirectoryInfo newDir = new DirectoryInfo(projectPath + "\\" + projectName + "\\" + "AdditionalFiles");
                 newDir.Create();
                 string newPath = projectPath + "\\" + projectName + "\\" + "AdditionalFiles";
@@ -320,7 +328,7 @@ namespace OpenessTIA
 
                 
 
-                
+                //Fim da cópia dos ficheiros
 
 
                 
@@ -364,8 +372,7 @@ namespace OpenessTIA
             catch (Exception)
             {
 
-                //Eintrag in der Whitelist ist nicht vorhanden
-                //Entry in whitelist is not available
+                //Cria a whitelist na registry do Windows
                 software = key.CreateSubKey(@"SOFTWARE\Siemens\Automation\Openness")
                     .CreateSubKey("18.0")
                     .CreateSubKey("Whitelist")
@@ -398,7 +405,11 @@ namespace OpenessTIA
         #region Criar e Encontrar Hmi's e Plc's no projeto
 
 
-        // Creates PLC with a given name
+        //Creates PLC with a given name
+
+        //parametro     plcName: String com Nome dado ao PLC
+        //parametro     plcVersion: String com versão do PLC dado pelo Article
+        //parametro     plcArticle: String com Código do PLC a ser criado
         public void createDevicePlc(string plcName = "PLC", string plcVersion = "V3.0", string plcArticle = "6ES7 512-1SM03-0AB0")
         {
 
@@ -415,7 +426,13 @@ namespace OpenessTIA
         }
 
         //Creates HMI with a given name
-        public void createDeviceHMI(bool unified , string hmiName = "HMI", string hmiVersion = "17.0.0.0", string hmiArticle = "6AV2 124-0MC01-0AX0")
+
+        //parametro     unified: Bool do tipo de HMI (Unified/Non-Unified)
+        //***Se unified == true então hmiVersion e hmiArticle deve ser de uma HMI Unified
+        //parametro     hmiName: Nome dado à HMI
+        //parametro     hmiVersion: versão da HMI dado pelo Article
+        //parametro     hmiArticle: Código da HMI a ser criado
+        public void createDeviceHMI(bool unified = false , string hmiName = "HMI", string hmiVersion = "17.0.0.0", string hmiArticle = "6AV2 124-0MC01-0AX0")
         {
            
             
@@ -428,6 +445,7 @@ namespace OpenessTIA
                
                 hmiIdentifier = "OrderNumber:" + hmiArticle + "/" + hmiVersion;
                 hmiStation = null;
+                //Cria a HMI não unified e atribui o Device da HMI
                 hmiDevice = projectTIA.Devices.CreateWithItem(hmiIdentifier, hmiName, hmiStation);
             }
             else
@@ -436,6 +454,7 @@ namespace OpenessTIA
                 hmiIdentifier = "OrderNumber:" + hmiArticle + "/" + hmiVersion;
                 hmiStation = null;
                 hmiName = "UnifiedHMI";
+                //Cria a hmi unified e atribui o Device da hmi
                 hmiUnifiedDevice = projectTIA.Devices.CreateWithItem(hmiIdentifier, hmiName, hmiStation);
 
             }
@@ -445,7 +464,18 @@ namespace OpenessTIA
             
         }
 
-        //Encontra os devices do projeto (Retorna 1 se não encontrar PLC, 2 se não encontrar HMI e 3 se não encontrar nem PLC e nem HMI e Retorna 0 se encontrar os dois)
+        //Encontra os devices do projeto baseado no nome destes.
+        //Seria boa ideia, se necessário, encontrar outra forma para encontrar PLC e HMI sem ser pelo nome
+        //Obriga a quem usa a biblioteca a saber o nome dos devices de um projeto já criado
+
+        //parametro     plcName: String com Nome dado ao PLC
+        //parametro     hmiName: Nome dado à HMI
+
+        //return        0:  Encontrou PLC e HMI 
+        //              1:  Encontrou HMI, mas não encontrou PLC
+        //              2:  Encontrou PLC, mas não encontrou HMI
+        //              3:  Não encontrou nem PLC nem HMI
+
         public int findDevices(string plcName, string hmiName)
         {
 
@@ -459,27 +489,31 @@ namespace OpenessTIA
             }else 
              { 
 
-
+                //Loop que percorre os Devices e Verifica se existe um PLC e uma HMI com o nome fornecido
                 for (count = 0; count < numDevices; count++)
                 {
 
 
-
+                    //Device da Lista Devices do projeto da ordem count
                     Device auxDevice = projectTIA.Devices[count];
 
+                    //Verifica se o Device da Lista tem o nome a encontrar
                     if (auxDevice.Name == plcName)
                     {
+                        //Atribui o PLC Device
                         plcDevice = auxDevice;
 
                         Console.WriteLine(plcDevice.Name + " Found");
 
-
+                        //Percorre os Device Items do PLC Device e atribui o PLC Device Item ao que não for NULL
                         foreach (DeviceItem deviceItem in plcDevice.DeviceItems)
                         {
                             SoftwareContainer softwareContainer = ((IEngineeringServiceProvider)deviceItem).GetService<SoftwareContainer>();
 
                             if (softwareContainer != null)
                             {
+                                //Atribui o PLC Device Item ao Item que tiver o nome do PLC
+                                //Cada PLC tem 4 Device Items e o PLC Device Item que contém o Software necessário do PLC tem o mesmo nome do PLC
                                 plcDeviceItem = plcDevice.DeviceItems.First(Device => Device.Name.Equals(plcName));
                                 if (plcDeviceItem == null) Console.WriteLine("Plc Device Item is null");
 
@@ -487,18 +521,22 @@ namespace OpenessTIA
                         }
 
                     }
-
+                    //Verifica se o Device da Lista tem o nome a encontrar
                     else if (auxDevice.Name == hmiName)
                     {
+                        //Atribui o HMI Device
                         hmiDevice = auxDevice;
 
                         Console.WriteLine(hmiDevice.Name + " Found");
+                        //Percorre os Device Items da HMI Device e atribui o PLC Device Item ao que não for NULL
                         foreach (DeviceItem deviceItem in hmiDevice.DeviceItems)
                         {
                             SoftwareContainer softwareContainer = ((IEngineeringServiceProvider)deviceItem).GetService<SoftwareContainer>();
 
                             if (softwareContainer != null)
                             {
+                                //Atribui da HMI Device Item ao Item que tiver o nome da HMI
+                                //Cada HMI tem 4 Device Items e o HMI Device Item que contém o Software necessário da HMI tem o mesmo nome da HMI
                                 hmiDeviceItem = hmiDevice.DeviceItems.First(Device => Device.Name.Equals(hmiName));
                                 if (hmiDeviceItem == null) Console.WriteLine("Hmi Device Item is null");
                             }
@@ -508,16 +546,21 @@ namespace OpenessTIA
                 }
             }
 
+                //Return dos códigos
+
                 if (plcDevice == null && hmiDevice != null)
                 {
+                //Não há PLC
                     Console.WriteLine("PLC not found");
                     erro = 1;
                 } else if (plcDevice != null && hmiDevice == null)
                 {
+                    //Não há HMI
                     Console.WriteLine("HMI not found");
                     erro = 2;
                 } else if (plcDevice == null && hmiDevice == null)
                 {
+                    //Não há HMI nem PLC
                     Console.WriteLine("PLC and HMI not Found");
                     erro = 3;
                 }
@@ -525,7 +568,7 @@ namespace OpenessTIA
                 
 
             
-            
+            //Retorna 0
             return erro;
         }
 
@@ -534,16 +577,19 @@ namespace OpenessTIA
 
 
         #region Obtenção do software dos devices
+        //Obtem o PLC Software
         public void getPlcSoftware()
         {
-
+            //Percorre os device items do PLC e verifica se este contém o Software necessário
+            //O PLC Software é a classe que possibilita efetuar as operações ligadas ao Software do PLC (Exportar, Importar, Criar, Apagar, ETC...)
             foreach (DeviceItem deviceItem in plcDevice.DeviceItems)
             {
                 SoftwareContainer softwareContainer = ((IEngineeringServiceProvider)deviceItem).GetService<SoftwareContainer>();
 
-
+                
                 if (softwareContainer != null)
                 {
+                    // Se exisitr PLC Software, é atribuido a plcSoftware
                     plcSoftware = (PlcSoftware)softwareContainer.Software;
 
 
@@ -560,7 +606,8 @@ namespace OpenessTIA
         public void getHmiTarget()
         {
 
-
+            //Percorre os device items da HMI e verifica se este contém o Software necessário
+            //O PLC Target é a classe que possibilita efetuar as operações ligadas ao Software da HMI (Exportar, Importar, Criar, Apagar, ETC...)
             foreach (DeviceItem deviceItem in hmiDevice.DeviceItems)
             {
                 SoftwareContainer softwareContainer = ((IEngineeringServiceProvider)deviceItem).GetService<SoftwareContainer>();
@@ -621,10 +668,14 @@ namespace OpenessTIA
         }
 
         //Dá um IP ao PLC, cria e concecta à subnet com nome especificado | Esta função deve ser executada antes da giveHmiIpAddress()
-        public void givePlcIPAddress(string ipAddress,string plcNameIp, string subnetName = "PN/IE_1")
+        //Atribui também um nome à variável "subnet" da classe
+
+        //parametro     ipAddress:  String do IP a ser Atribuido
+        //parametro     subnetName: Nome da Subnet a ser Criada
+        public void givePlcIPAddress(string ipAddress, string subnetName = "PN/IE_1")
         {
 
-            
+            //Obtem os Device Items Corretos
 
             DeviceItem plcProfinet = plcDeviceItem.DeviceItems.First(DeviceItem => DeviceItem.Name.Equals("PROFINET interface_1") );
             
@@ -638,6 +689,8 @@ namespace OpenessTIA
 
                     if (node != null)
                     {
+
+                        // Loop que verifica se a subnet já existe e se o IP já foi atribuido ao PLC
                         foreach(EngineeringAttributeInfo nodeInfo in node.GetAttributeInfos())
                         {
                             
@@ -668,8 +721,13 @@ namespace OpenessTIA
         }
 
         //Dá um IP à HMI e conecta à subnet do projeto
+
+        //parametro     ipAddress:  String do IP a ser Atribuido
+        //parametro     hmiNameIp:  String do nome da HMI, necessário para aceder ao HMI Device Item ligado ao IP
+        //*** Este parametro não é necessário com uma leve alteração ao código, procurando o nome da HMI a partir do hmiTarget
         public void giveHmiIPAddress(string ipAddress, string hmiNameIp)
         {
+            //Acede aos Device Item Carretos para a atribuição do IP
             DeviceItem hmiDeviceItemForIp = hmiDevice.DeviceItems.First(Device => Device.Name.Equals(hmiNameIp + ".IE_CP_1"));
 
             DeviceItem hmiProfinet = hmiDeviceItemForIp.DeviceItems.First(DeviceItem => DeviceItem.Name.Equals("PROFINET Interface_1"));
@@ -687,7 +745,7 @@ namespace OpenessTIA
 
                     if (node != null)
                     {
-                        
+                        //Loop para verificar se o IP já foi atribuido à HMI
                         foreach (EngineeringAttributeInfo nodeInfo in node.GetAttributeInfos())
                         {
           
@@ -719,10 +777,15 @@ namespace OpenessTIA
 
         }
 
-        //usa as funcções givePlcIPAddress e giveHmiIPAddress e conecta-as à subnet 
-        public void connectDevices(string plcNameIp, string hmiNameIp, string plcIp = "192.168.192.1", string hmiIp = "192.168.192.2", string subnetName = "PN/IE_1")
+        //Usa as funcções givePlcIPAddress e giveHmiIPAddress e conecta-as à subnet 
+
+        //parametro     hmiNameIp:  String do nome da HMI
+        //parametro     plcIp:      String do IP a atribuir ao PLC
+        //parametro     hmiIp:      String do IP a atribuir à HMI
+        //parametro     subnetName: Nome da Subnet a ser Criada
+        public void connectDevices(string hmiNameIp, string plcIp = "192.168.192.1", string hmiIp = "192.168.192.2", string subnetName = "PN/IE_1")
         {
-            givePlcIPAddress(plcIp, plcNameIp, subnetName);
+            givePlcIPAddress(plcIp, subnetName);
 
             giveHmiIPAddress(hmiIp, hmiNameIp);
 
@@ -733,14 +796,15 @@ namespace OpenessTIA
 
 
         #region Funções base para criação de pastas importar Global Library e Importar objetos da Global Library
-        public void countDataBlocks(List<Cilindro> listaCilindros)
+        //Conta os Data Blocks e atribui o valo a "numeroDBs" e "numeroDBsCylinder"
+        public void countDataBlocks(List<Peca> listaCilindros)
         {
             numeroDBs = 0;
             numeroDBsCylinder = 0;
 
             var plcFolder = plcSoftware.BlockGroup.Groups;
 
-
+            //Conta os Datablocks fora de qualquer pasta ou estação
             foreach (PlcBlock block in plcSoftware.BlockGroup.Blocks)
             {
                 if (block is DataBlock)
@@ -760,7 +824,7 @@ namespace OpenessTIA
 
                 }
             }
-
+            //Conta os DataBlocks das estações
             foreach (PlcBlockGroup stationGroup in plcFolder)
             {
                     foreach(PlcBlock block in stationGroup.Blocks)
@@ -785,8 +849,8 @@ namespace OpenessTIA
             Console.WriteLine("Numero de DataBlocks: " + numeroDBs);
             Console.WriteLine("Numero de DataBlocks Cilindro: " + numeroDBsCylinder);
         }
-        //Itens do PLC
-
+        
+        //Conta o número de FCs
         public void countFCs()
         {
             numeroFCs = 0;
@@ -795,7 +859,7 @@ namespace OpenessTIA
 
             var plcFolder = plcSoftware.BlockGroup.Groups;
 
-
+            //Conta as FCs fora das estações
             foreach (PlcBlock block in plcSoftware.BlockGroup.Blocks)
             {
                 if (block is FC)
@@ -806,7 +870,7 @@ namespace OpenessTIA
 
                 }
             }
-
+            //Conta as FCs nas estações
             foreach (PlcBlockGroup stationGroup in plcFolder)
             {
                 foreach (PlcBlock block in stationGroup.Blocks)
@@ -822,7 +886,7 @@ namespace OpenessTIA
             Console.WriteLine("Numero de FC's: "+ numeroFCs);
         }
 
-
+        //Conta o número de Screens     Não funciona com o sistema de estações, mas com a estrutura de contar os Datablocks, verificando cada estação,pode funionar
         public void countScreens()
         {
             int numScreens = 0;
@@ -841,12 +905,13 @@ namespace OpenessTIA
             Console.WriteLine("Numero de Screens: " + numeroScreens);
         }
 
+        //Conta os Main Blocks
         public void countMains()
         {
             int numMains = 0;
             var plcFolder = plcSoftware.BlockGroup.Groups;
 
-
+            // Conta os OBs fora das estações
             foreach (PlcBlock block in plcSoftware.BlockGroup.Blocks)
             {
                 if (block is OB)
@@ -857,7 +922,7 @@ namespace OpenessTIA
 
                 }
             }
-
+            //Conta os OBs dentro das estações
             foreach (PlcBlockGroup stationGroup in plcFolder)
             {
                 foreach (PlcBlock block in stationGroup.Blocks)
@@ -874,16 +939,21 @@ namespace OpenessTIA
             Console.WriteLine("Numero de Main Blocks: " + numeroMainBlocks);
         }
 
-        //Importa a Global Library com Faceplates UDts e Fb's da Controlar 
+        //Importa a Global Library da pasta de ficheiros
         public void importGlobalLibrary()
         {
+            //Abre o ficheiro com a biblioteca global 
             FileInfo info = new FileInfo(globalLibraryPath);
             globalLibrary = instTIA.GlobalLibraries.Open(info, OpenMode.ReadWrite);
 
             Console.WriteLine("Global Library imported");
         }
 
-        public void createPlcFolders(List<Cilindro> listaCilindros)
+        //Cria as pastas do PLC a partir da lista de Peças
+
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+        public void createPlcFolders(List<Peca> listaCilindros)
         {
             var plcFolder = plcSoftware.BlockGroup.Groups;
             int numFolders = plcFolder.Count;
@@ -892,7 +962,7 @@ namespace OpenessTIA
 
             bool existeStation = false;
             
-            
+            //Verifica se a pasta já foi criada e cria-a se não houver
             for(int i = 0; i < listaCilindros.Count(); i++)
             {
                 existeStation = false;
@@ -929,7 +999,7 @@ namespace OpenessTIA
 
             int numPlcFolders = plcFolder.Count;
 
-
+            //Verifica se a pasta de UDT's já existe
             if (numPlcFolders > 0)
             {
 
@@ -942,9 +1012,12 @@ namespace OpenessTIA
                     }
                 }
             }
+
             if (numCopies != 0) { 
+                // Se a pasta de UDT's não existir, cria uma
                 if (existeFolder == 0)
                 {
+                    
                     plcFolder.Create("UDTs");
                     Console.WriteLine("--->Group UDTs Created");
                 }
@@ -962,7 +1035,7 @@ namespace OpenessTIA
 
                         PlcTypeComposition typeComposition = group.Types;
 
-
+                        //Verifica se a UDT já existe na pasta de UDT's e cria se não existir a partir da Global Library
                         for (int i = 0; i < numCopies; i++)
                         {
                             MasterCopy masterCopySource = globalLibrary.MasterCopyFolder.Folders.Find("UDTs").MasterCopies[i];
@@ -1010,7 +1083,7 @@ namespace OpenessTIA
 
             if (numCopies != 0)
             {
-
+                //Verifica se existe a pasta de FBs
                 if (numFbFolders > 0)
                 {
                     for (int i = 0; i < numFbFolders; i++)
@@ -1024,10 +1097,12 @@ namespace OpenessTIA
 
                 if (existeFolder == 0)
                 {
+                    //Cria pasta de FBs caso não exista
                     plcFolder.Create("FBs");
                     Console.WriteLine("--->Folder FBs Created");
                 }
 
+                //Verifica se a FB existe e cria-a caso não exista a partir da Global Library
                 foreach (PlcBlockUserGroup group in plcFolder)
                 {
                     
@@ -1078,32 +1153,26 @@ namespace OpenessTIA
 
         }
 
-        //Importa DataBlocks da Global Library. Para Datablocks de Objetos funciona.(Por algum motivo avança um número de datablock, por isso usar esta função por último)
-        public int getDataBlockFromLibrary(List<Cilindro> listaCilindros, string dbName = "Cylinder")
+        //Importa DataBlocks da Global Library. Para Datablocks de Objetos funciona.
+
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+
+        //Return        1:Sem erros
+        //              0:Ocorreu algum erro
+        public int getDataBlockFromLibrary(List<Peca> listaCilindros)
         {
             int existeFolder = 0;
             int numCopies = globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies.Count;
             var plcFolder = plcSoftware.BlockGroup.Groups;
             int numBlockFolders = plcFolder.Count;
-            bool existeCopia = false;
+            
 
-            for(int i = 0; i < numCopies; i++)
-            {
-                if (globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies[i].Name == dbName)
-                {
-                    existeCopia = true;
-                }
-            }
 
-            if(existeCopia == false)
-            {
-                Console.WriteLine("The Copy " + dbName + " doesn't exists");
-                return -1;
-            }
 
             if (numCopies != 0)
             {
-
+                //Verifica se existe a pasta da estação 
                 if (numBlockFolders > 0)
                 {
                     for (int i = 0; i < numBlockFolders; i++)
@@ -1117,10 +1186,15 @@ namespace OpenessTIA
 
                 if (existeFolder == 0)
                 {
+                    //Cria a pasta da estação, caso não exista
                     plcFolder.Create(listaCilindros[0].getStation());
                     Console.WriteLine("--->Folder DataBlocks Created");
                 }
 
+                
+
+                //Cria o Datablock da Estação com o nome do Posto
+                //Este código podria ser feito de forma mais simples, usando melhor as features do C#
                 foreach (PlcBlockUserGroup group in plcFolder)
                 {
                     
@@ -1134,20 +1208,33 @@ namespace OpenessTIA
 
 
 
-                        
-                        MasterCopy masterCopySource = globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies.Find(dbName);
-
-
-
-                        for(int j = 0; j < listaCilindros.Count; j++)
+                        for (int j = 0; j < listaCilindros.Count; j++)
                         {
+                            bool existeCopia = false;
+                           
+                            for (int i = 0; i < numCopies; i++)
+                            {
+                                
+                                if (globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies[i].Name == listaCilindros[j].getType())
+                                {
+                                    
+                                    existeCopia = true;
+                                }
+                            }
+                            if (existeCopia == false)
+                            {
+                                Console.WriteLine("The Copy " + listaCilindros[j].type + " doesn't exists");
+                                return -1;
+                            }
+                            MasterCopy masterCopySource = globalLibrary.MasterCopyFolder.Folders.Find("DataBlocks").MasterCopies.Find(listaCilindros[j].getType());
                             group.Blocks.CreateFrom(masterCopySource);
                             var db = group.Blocks.Find(masterCopySource.Name) as DataBlock;
 
-                            changeDataBlock(db, "DB " + listaCilindros[j].getName() + " - " +listaCilindros[j].getNest(), listaCilindros);
+                            changeDataBlock(db, "DB " + listaCilindros[j].getName() + " - " + listaCilindros[j].getNest(), listaCilindros);
 
 
                             Console.WriteLine("Block " + group.Blocks.Last().Name + " Created in folder " + group.Name);
+                        
                         }
                        
 
@@ -1168,19 +1255,24 @@ namespace OpenessTIA
             return -1;
         }
 
+        //Divide a lista por estações
 
-        public List<List<Cilindro>> divideLists(List<Cilindro> listaCilindros){
-            List<List<Cilindro>> listas = new List<List<Cilindro>>();
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+
+        //return     Retorna uma Lista de Listas de "Peca", de acordo com as estações
+        public List<List<Peca>> divideLists(List<Peca> listaCilindros){
+            List<List<Peca>> listas = new List<List<Peca>>();
             bool existe = false;
             List<string> stations = getStations(listaCilindros);
 
             for(int i = 0; i < stations.Count(); i++)
             {
-                List<Cilindro> listCylAux = new List<Cilindro>();
+                List<Peca> listCylAux = new List<Peca>();
 
                 for(int j = 0; j < listaCilindros.Count(); j++)
                 {
-                    Cilindro auxCyl = new Cilindro(listaCilindros[j].getName(), listaCilindros[j].getStation(), listaCilindros[j].getNest());
+                    Peca auxCyl = new Peca(listaCilindros[j].getName(), listaCilindros[j].getStation(), listaCilindros[j].getNest(), listaCilindros[j].getType());
 
                     if (stations[i] == listaCilindros[j].getStation())
                     {
@@ -1199,8 +1291,13 @@ namespace OpenessTIA
 
         }
 
+        //Obtem uma Lista de Strings de todas as estações
 
-        public List<string> getStations(List<Cilindro> listaCilindros)
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+
+        //Return        Lista de String das estações
+        public List<string> getStations(List<Peca> listaCilindros)
         {
             List<string> stations = new List<string>();
             bool existe = false;
@@ -1228,7 +1325,13 @@ namespace OpenessTIA
 
 
         //Altera o nome e o número do dataBlock de Cilindro para coincidir com o número existente
-        public void changeDataBlock(DataBlock db, string name, List<Cilindro> listaCilindros)
+
+        //param     db:     DataBlock a Alterar
+        //param     name:   Nome a Atribuir
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+
+        public void changeDataBlock(DataBlock db, string name, List<Peca> listaCilindros)
         {
             countDataBlocks(listaCilindros);
 
@@ -1295,8 +1398,8 @@ namespace OpenessTIA
             
         }
 
-       
-        
+
+
 
         #endregion
 
@@ -1304,10 +1407,14 @@ namespace OpenessTIA
 
         #region Funções de pastas de screens e templates 
 
-        //Cria um folder para Screens   (Retorna false se um folder com o mesmo nome não existia, criando um| Retorna true se folder com o mesmo nome já existia)
-        public void createScreenFolder(bool isUnified,List<Cilindro> listaCilindros)
+        //Cria um folder para Screens   a partir das estações
+
+        //parametro     isUnified: Bool com informação sobre o tipo da HMI
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+        public void createScreenFolders(bool isUnified,List<Peca> listaCilindros)
         {
-            bool existe = false;
+            
 
             int numScreenFolders;
 
@@ -1364,7 +1471,7 @@ namespace OpenessTIA
 
         }
 
-
+        //Obtem todas as templates da Global Library
         public void getAllTemplatesFromLibrary(bool isUnified)
         {
             if (!isUnified)
@@ -1375,6 +1482,7 @@ namespace OpenessTIA
                 }
             }
         }
+        //Obtem uma template específica
         public void getTemplateFomLibrary(string templateName)
         {
             bool existe = false;
@@ -1405,17 +1513,17 @@ namespace OpenessTIA
 
 
         }
-  
+
 
         #endregion
-        
+
 
 
         #region Exportação/Importação de ficheiros XML
 
         //Todos os ficheiros são criados e importados a partir do caminho de filePath 
         //Para um ficheiro ser importado, deve ter o seu nome + _write
-        //FB_write.xml      FC_write.xml        DB_write.xml        Main_write.xml      Screen_write.xml        TagTable_write.xml
+        //FB_write.xml      FC_write.xml        DB_write.xml        Main_write.xml      Screen_write.xml        HmiTagTable_write.xml       PlcTagTable_write.xml
         //Os ficheiros XML sobrepõem-se. Só está disponível para importação um ficheiro XML de cada tipo por vez
 
         //Importa XML de uma FB 
@@ -1454,7 +1562,7 @@ namespace OpenessTIA
         {
             
             var fcFolder = plcSoftware.BlockGroup.Groups.Find(stationName);
-            string path = filePath + @"\Cylinders_DB_write.xml";
+            string path = filePath + @"\DB_write.xml";
             FileInfo info = new FileInfo(string.Format(path));
 
             fcFolder.Blocks.Import(info, ImportOptions.Override);
@@ -1500,7 +1608,7 @@ namespace OpenessTIA
 
             
         }
-        //Exporta XML de Tag Table
+        //Exporta XML de Tag Table de HMI
         public void exportHmiTagTable()
         {
             string path = filePath + @"\HmiTagTable.xml";
@@ -1510,7 +1618,7 @@ namespace OpenessTIA
 
 
         }
-        //Importa XML de uma Tag Table
+        //Importa XML de uma Tag Table de HMI
         public void importHmiTagTable()
         {
             
@@ -1520,7 +1628,7 @@ namespace OpenessTIA
 
             Console.WriteLine("HMI Tag Table Imported");
         }
-
+        //Exporta uma TagTable de PLC
         public void exportPlcTagTable()
         {
             string path = filePath + @"\PlcTagTable.xml";
@@ -1530,7 +1638,7 @@ namespace OpenessTIA
             plcSoftware.TagTableGroup.TagTables.Find("TagTable_Export").Export(file, ExportOptions.WithDefaults);
 
         }
-
+        //Importa XML de uma TagTable de PLC
         public void importPlcTagTable()
         {
             string path = filePath + @"\PlcTagTable_write.xml";
@@ -1634,7 +1742,8 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //Escreve uma estrutura do Tipo <elementString attributeString="attributeValue" secondAttributeString="secondAttributeValue" thirdAttributeString="thirdAttributeValue">elementValue</elementString>
-        public void writeXmlElementWithThreeattributes(string elementString, string elementValue, string attributeString, string attributeValue, string secondAttributeString, string secondAttributeValue, string thirdAttributeString, string thirdAttributeValue, XmlWriter writer)
+        public void writeXmlElementWithThreeattributes(string elementString, string elementValue, string attributeString, string attributeValue, 
+            string secondAttributeString, string secondAttributeValue, string thirdAttributeString, string thirdAttributeValue, XmlWriter writer)
         {
             writer.WriteStartElement(elementString);
             writer.WriteAttributeString(attributeString, attributeValue);
@@ -1667,7 +1776,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //Escreve a Interface da DB de Cilindro
-        public void writeXmlInterfaceDbCylinder(XmlWriter writer, List<Cilindro> listaCilindros)
+        public void writeXmlInterfaceDbCylinder(XmlWriter writer, List<Peca> listaCilindros)
         {   
             
             
@@ -1790,10 +1899,10 @@ namespace OpenessTIA
 
         }
         //**Escreve o documento em XML de uma DB de Cilindro
-        public void writeXmlfileDBCylinder( List<Cilindro> listaCilindros)
+        public void writeXmlfileDBCylinder( List<Peca> listaCilindros)
         {
 
-            string path = filePath + @"\Cylinders_DB_write.xml";
+            string path = filePath + @"\DB_write.xml";
             countDataBlocks(listaCilindros);
             FileInfo info = new FileInfo(string.Format(path));
 
@@ -1831,13 +1940,15 @@ namespace OpenessTIA
                                     writer.WriteStartElement("Section");
                                     writer.WriteAttributeString("Name", "Static");
                             writeXmlInterfaceDbCylinder(writer, listaCilindros);
+                           //writeXmlInterfaceDbConveyor(writer, listaConveyors);
 
-                                              writer.WriteEndElement();
-                                
-                            
-                             
+                                    writer.WriteEndElement();
+                                writer.WriteEndElement();
                             writer.WriteEndElement();
-                            writer.WriteEndElement();
+
+
+
+
                             writeXmlElementWithattribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
                             writeXmlElementWithattribute("IsConsistent", "true", "ReadOnly", "true", writer);
                             writeXmlElementWithattribute("IsKnowHowProtected", "false", "ReadOnly", "true", writer);
@@ -1934,22 +2045,38 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //Escreve todas as Wires da FC
-        public void writeXmlWires(XmlWriter writer, int callUid)
+        public void writeXmlWiresCylinder(XmlWriter writer, int callUid)
         {
             writer.WriteStartElement("Wire");
-                writer.WriteAttributeString("UId", "42");
+                writer.WriteAttributeString("UId", "50");
                 writer.WriteStartElement("Powerrail");
                 writer.WriteEndElement();
                 writer.WriteStartElement("NameCon");
-                writer.WriteAttributeString("UId", "30");
+                writer.WriteAttributeString("UId", "34");
                 writer.WriteAttributeString("Name", "en");
+                writer.WriteEndElement();
+                writer.WriteStartElement("NameCon");
+                writer.WriteAttributeString("UId", "36");
+                writer.WriteAttributeString("Name", "in");
+                writer.WriteEndElement();
+                writer.WriteStartElement("NameCon");
+                writer.WriteAttributeString("UId", "37");
+                writer.WriteAttributeString("Name", "in");
+                writer.WriteEndElement();
+                writer.WriteStartElement("NameCon");
+                writer.WriteAttributeString("UId", "38");
+                writer.WriteAttributeString("Name", "in");
+                writer.WriteEndElement();
+                writer.WriteStartElement("NameCon");
+                writer.WriteAttributeString("UId", "39");
+                writer.WriteAttributeString("Name", "in");
                 writer.WriteEndElement();
             writer.WriteEndElement();
 
 
-            writeXmlSingleWire(writer, 43, 32, callUid, "name");
+            writeXmlSingleWire(writer, 51, 40, callUid, "name");
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "44");
+            writer.WriteAttributeString("UId", "52");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "21");
             writer.WriteEndElement();
@@ -1959,7 +2086,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "45");
+            writer.WriteAttributeString("UId", "53");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "22");
             writer.WriteEndElement();
@@ -1968,11 +2095,11 @@ namespace OpenessTIA
             writer.WriteAttributeString("Name", "enableWork");
             writer.WriteEndElement();
             writer.WriteEndElement();
-            writeXmlSingleWire(writer, 46, 33, callUid, "doorOpen");
-            writeXmlSingleWire(writer, 47, 34, callUid, "manualMode");
-            writeXmlSingleWire(writer, 48, 35, callUid, "reset");
+            writeXmlSingleWire(writer, 54, 41, callUid, "doorOpen");
+            writeXmlSingleWire(writer, 55, 42, callUid, "manualMode");
+            writeXmlSingleWire(writer, 56, 43, callUid, "reset");
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "49");
+            writer.WriteAttributeString("UId", "57");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "23");
             writer.WriteEndElement();
@@ -1982,7 +2109,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "50");
+            writer.WriteAttributeString("UId", "58");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "24");
             writer.WriteEndElement();
@@ -1992,7 +2119,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "51");
+            writer.WriteAttributeString("UId", "59");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "25");
             writer.WriteEndElement();
@@ -2002,7 +2129,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
             writer.WriteEndElement();
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "52");
+            writer.WriteAttributeString("UId", "60");
             writer.WriteStartElement("IdentCon");
             writer.WriteAttributeString("UId", "26");
             writer.WriteEndElement();
@@ -2011,14 +2138,14 @@ namespace OpenessTIA
             writer.WriteAttributeString("Name", "orderWork");
             writer.WriteEndElement();
             writer.WriteEndElement();
-            writeXmlSingleWire(writer, 53, 36, callUid, "doesNotRetainOutput");
-            writeXmlSingleWire(writer, 54, 37, callUid, "timeFilterHome");
-            writeXmlSingleWire(writer, 55, 38, callUid, "timeFilterWork");
-            writeXmlSingleWire(writer, 56, 39, callUid, "timeTimeout");
+            writeXmlSingleWire(writer, 61, 44, callUid, "doesNotRetainOutput");
+            writeXmlSingleWire(writer, 62, 45, callUid, "timeFilterHome");
+            writeXmlSingleWire(writer, 63, 46, callUid, "timeFilterWork");
+            writeXmlSingleWire(writer, 64, 47, callUid, "timeTimeout");
 
 
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "57");
+            writer.WriteAttributeString("UId", "65");
                 writer.WriteStartElement("IdentCon");
                 writer.WriteAttributeString("UId", "27");
                 writer.WriteEndElement();
@@ -2031,7 +2158,7 @@ namespace OpenessTIA
 
             
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "58");
+            writer.WriteAttributeString("UId", "66");
                 writer.WriteStartElement("NameCon");
                 writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "outputHome");
@@ -2042,7 +2169,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
 
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "59");
+            writer.WriteAttributeString("UId", "67");
                 writer.WriteStartElement("NameCon");
                 writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "outputWork");
@@ -2054,27 +2181,76 @@ namespace OpenessTIA
 
 
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "60");
+            writer.WriteAttributeString("UId", "68");
                 writer.WriteStartElement("NameCon");
                 writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "errorTimeoutWork");
                 writer.WriteEndElement();
                 writer.WriteStartElement("OpenCon");
-                writer.WriteAttributeString("UId", "40");
+                writer.WriteAttributeString("UId", "48");
                 writer.WriteEndElement();
             writer.WriteEndElement();
 
 
             writer.WriteStartElement("Wire");
-            writer.WriteAttributeString("UId", "61");
+            writer.WriteAttributeString("UId", "69");
                 writer.WriteStartElement("NameCon");
                 writer.WriteAttributeString("UId", callUid.ToString());
                 writer.WriteAttributeString("Name", "errorTimeoutHome");
                 writer.WriteEndElement();
                 writer.WriteStartElement("OpenCon");
-                writer.WriteAttributeString("UId", "41");
+                writer.WriteAttributeString("UId", "49");
                 writer.WriteEndElement();
             writer.WriteEndElement();
+
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "70");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "30");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", "36");
+            writer.WriteAttributeString("Name", "operand");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "71");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "31");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", "37");
+            writer.WriteAttributeString("Name", "operand");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "72");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "32");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", "38");
+            writer.WriteAttributeString("Name", "operand");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
+            writer.WriteStartElement("Wire");
+            writer.WriteAttributeString("UId", "73");
+            writer.WriteStartElement("IdentCon");
+            writer.WriteAttributeString("UId", "33");
+            writer.WriteEndElement();
+            writer.WriteStartElement("NameCon");
+            writer.WriteAttributeString("UId", "39");
+            writer.WriteAttributeString("Name", "operand");
+            writer.WriteEndElement();
+            writer.WriteEndElement();
+
+
 
 
 
@@ -2092,7 +2268,7 @@ namespace OpenessTIA
         }
 
         //Escreve as Networks com FBs de Cilindro na FC
-        public int writeXmlNetorksFcCylinder(int idCounter, XmlWriter writer, List<Cilindro> listaCilindros)
+        public int writeXmlNetworksFcCylinder(int idCounter, XmlWriter writer, List<Peca> listaCilindros)
         {
             
             string numCilindroString;
@@ -2583,13 +2759,14 @@ namespace OpenessTIA
 
                                 //Start Wires
                                 writer.WriteStartElement("Wires");
-                                writeXmlWires(writer, callUid);
-                                    
+                                writeXmlWiresCylinder(writer, callUid);
+                                //writeXmlWiresConveyor(writer, callUid);
+                                writer.WriteEndElement();
                                 //writeXmlWire();
-                                    
-                                writer.WriteEndElement();
-                                writer.WriteEndElement();
-                                //End Wires
+
+
+                writer.WriteEndElement();
+                                
                                 writer.WriteEndElement();
                                 writer.WriteElementString("ProgrammingLanguage", "LAD");
                                 writer.WriteEndElement();
@@ -2685,7 +2862,7 @@ namespace OpenessTIA
             writer.WriteEndElement();
         }
         //**Escreve o documento em XML de uma FC de Cilindro
-        public void writeXmlFileFcCylinder(List<Cilindro> listaCilindros)
+        public void writeXmlFileFcCylinder(List<Peca> listaCilindros)
         {
             string path = filePath + @"\FC_write.xml";
             FileInfo info = new FileInfo(string.Format(path));
@@ -2719,6 +2896,7 @@ namespace OpenessTIA
 
                             //Start Interface
                             writeXmlInterfaceFcCylinder(writer);
+            
                             //End Interface
 
                             writeXmlElementWithattribute("InterfaceModifiedDate", "2025-03-19T15:17:54.4622546Z", "ReadOnly", "true", writer);
@@ -2763,9 +2941,11 @@ namespace OpenessTIA
                         idCounter = 3;
 
                          //Start Networks
-                         idCounter = writeXmlNetorksFcCylinder(idCounter, writer, listaCilindros);
-                            
 
+                         idCounter = writeXmlNetworksFcCylinder(idCounter, writer, listaCilindros);
+                        //idCounter = writeXmlNetworksFcConveyor(idCounter, writer, listaConveyors);
+                            
+                        //End Networks
                         //Start Final MultilingualText 
                         writer.WriteStartElement("MultilingualText");
                         writer.WriteAttributeString("ID", intToHex(idCounter));
@@ -2807,11 +2987,11 @@ namespace OpenessTIA
 
         
 
-        public int writeFaceplateInstancesCylinder(XmlWriter writer, int idCounter, List<Cilindro> listaCilindros )
+        public int writeFaceplateInstancesCylinder(XmlWriter writer, int idCounter, List<Peca> listaCilindros )
         {
             string top;
             string left;
-            writer.WriteStartElement("ObjectList");
+            
             for(int i = 0; i < listaCilindros.Count; i++)
             {
                 if (i < 2) {
@@ -2882,11 +3062,11 @@ namespace OpenessTIA
                 writer.WriteEndElement();
             }
 
-            writer.WriteEndElement();
+            
 
             return idCounter;
         }
-        public void writeXmlFileScreenCylinder(List<Cilindro> listaCilindros, string templateName = "Template")
+        public void writeXmlFileScreenCylinder(List<Peca> listaCilindros, string templateName = "Template")
         {
 
 
@@ -2967,9 +3147,13 @@ namespace OpenessTIA
                                 writer.WriteElementString("VisibleES", "true");
                             writer.WriteEndElement();
 
-                            
-                            
+                        writer.WriteStartElement("ObjectList");             //Start Object List de Faceplates
+
                         writeFaceplateInstancesCylinder(writer, idCounter, listaCilindros);
+                        //writeFaceplateInstancesConveyor(writer, idCounter, listaConveyors);
+
+                        writer.WriteEndElement();                           //End Object List de Faceplates
+                        
                         writer.WriteEndElement();
                       
                       
@@ -3000,7 +3184,7 @@ namespace OpenessTIA
         #region Escrita do Documento XML de um Main Block de Cilindros
 
 
-        public void writeXmlFileMainBlockCylinder(List<Cilindro> listaCilindros)
+        public void writeXmlFileMainBlockCylinder(List<Peca> listaCilindros)
         {
             string path = filePath + @"\Main_write.xml";
             FileInfo info = new FileInfo(string.Format(path));
@@ -3655,7 +3839,7 @@ namespace OpenessTIA
         }
 
         //Escreve cada membro da Tag Table
-        public int writeTagTableMembersCylinder(XmlWriter writer, int idCounter, List<Cilindro> listaCilindros)
+        public int writeTagTableMembersCylinder(XmlWriter writer, int idCounter, List<Peca> listaCilindros)
         {
 
 
@@ -3803,7 +3987,7 @@ namespace OpenessTIA
         }
 
         //Função principal de escrita de XML da Tag Table de HMI de Cilindro
-        public void writeXmlHmiTagTableCylinder(List<Cilindro> listaCilindros, string name)
+        public void writeXmlHmiTagTableCylinder(List<Peca> listaCilindros, string name)
         {
             string path = filePath + @"\HmiTagTable_write.xml";
             XmlWriter writer = XmlWriter.Create(path);
@@ -3831,7 +4015,7 @@ namespace OpenessTIA
                     //Start Object List (Tag Table Members)
                         writer.WriteStartElement("ObjectList");
                             idCounter = writeTagTableMembersCylinder(writer, idCounter, listaCilindros);
-
+                            //idCounter = writeTagTableMembersConveyor(writer, idCounter, listaConveyors);
                         writer.WriteEndElement();
                     //End Object List (Tag Table Members)
                     writer.WriteEndElement();
@@ -3848,10 +4032,17 @@ namespace OpenessTIA
 
 
         #region Imports do Excel
-       
-        public List<Cilindro> verifyCylinders(string fileName, List<Cilindro> listaCilindros)
+        //Verifica se os Cilindros tem todos os Outputs e Inputs necessários
+
+        //parametro     fileName:   String com o nome do ficheiro em excel
+        //parametro     listaCilindros:     Lista da classe "Peca"
+        //***   Independentemente do Nome, não precisa de ser um Cilindro
+
+        //Return        Retorn a lista de Pecas com entradas e saídas corretas, estação, posto e tipo de Peça "Cilindro". Também Organiza a Lista para apenas ter cada peça apenas uma vez
+        
+        public List<Peca> verifyCylinders(string fileName, List<Peca> listaCilindros)
         {
-            List<Cilindro> list = new List<Cilindro>();
+            List<Peca> list = new List<Peca>();
 
            
             string path = filePath + "\\" + fileName + ".xlsx";
@@ -3871,6 +4062,7 @@ namespace OpenessTIA
                 bool qWork = false;
                 string station = "";
                 string nest = "";
+                string type = "";
 
                 bool existe = false;
                 for(int j = 0; j < list.Count(); j++)
@@ -3897,6 +4089,7 @@ namespace OpenessTIA
                         {
                             nest = listaCilindros[i].getNest();
                             station = listaCilindros[i].getStation();
+                            type = "Cylinder";
 
                             iHome = true;
 
@@ -3926,11 +4119,11 @@ namespace OpenessTIA
                         row++;
                     }
 
-                    if (iHome && iWork && qHome && qWork && existe == false)
+                    if (iHome && iWork && qHome && qWork )
                     {
-                        Cilindro insertCyllinder = new Cilindro(listaCilindros[i].getName(), station, nest);
-                        list.Add(insertCyllinder);
-                        Console.WriteLine(insertCyllinder.getName() + " Station: " + insertCyllinder.getStation() + " Nest: " + insertCyllinder.getNest() + " cumpre requisitos");
+                        Peca insertCylinder = new Peca(listaCilindros[i].getName(), station, nest, type);
+                        list.Add(insertCylinder);
+                        Console.WriteLine(insertCylinder.getName() + " Station: " + insertCylinder.getStation() + " Nest: " + insertCylinder.getNest() + " Type: " + insertCylinder.getType() + " cumpre requisitos");
                     }
                     else
                     {
@@ -3944,9 +4137,16 @@ namespace OpenessTIA
             return list;
 
         }
-        public List<Cilindro> CountCylinders(string fileName)
+
+        //A partir do ficheiro em excel, cria uma Lista de Pecas
+
+        //parametro     fileName:   String com o nome do ficheiro em excel
+
+        //Return        Retorna a Lista de Pecas que é retornada por verifyCylinders
+
+        public List<Peca> CountCylinders(string fileName)
         {
-            List<Cilindro> listaCilindros = new List<Cilindro>();
+            List<Peca> listaCilindros = new List<Peca>();
 
             Console.WriteLine(filePath);
             string path = filePath + "\\" + fileName + ".xlsx";
@@ -3978,16 +4178,20 @@ namespace OpenessTIA
                 {
                     nest = "";
                 }
+                
                 name = worksheet.Cells[row, 11].Value;
+
+               
                 
                 if (name.Substring(0,4) == "iCyl" && (name.Substring(name.Length - 4) == "Work" || name.Substring(name.Length - 4) == "Home"))
                 {
                     name = name.Substring(4);
                     name = name.Substring(0, name.Length - 4);
+                    string type = "Cylinder";
 
 
 
-                    Cilindro insertCylinder = new Cilindro(name, station, nest);
+                    Peca insertCylinder = new Peca(name, station, nest, type);
 
 
 
@@ -4001,12 +4205,19 @@ namespace OpenessTIA
                 row++;
             }
 
+            for(int i = 0; i < listaCilindros.Count; i++)
+            {
+                Console.WriteLine(listaCilindros[i].name);
+            }
 
             listaCilindros = verifyCylinders(fileName, listaCilindros);
             excel.Workbooks.Close();
             return listaCilindros;
         }
-        
+
+        //Escreve o XML de TagTable de PLC de a partir da lista de IO's do excel
+
+        //parametro     fileName:   String com o nome do ficheiro em excel
         public void writeXmlPlcTagTableIO(string fileName)
         {
             string path = filePath +"\\" +  fileName + ".xlsx";
@@ -4245,6 +4456,9 @@ namespace OpenessTIA
 
         }
 
+        //Lê a lista de IO's do Excel e importa os modulos necessários
+
+        //parametro     fileName:   String com o nome do ficheiro em excel
         public void importPlcModules(string fileName)
         {
             Console.WriteLine(filePath);
@@ -4258,7 +4472,7 @@ namespace OpenessTIA
             Console.WriteLine("Last Output Address: " + lastOutputAddress);
             
 
-            List<Cilindro> modules = new List<Cilindro>();
+            List<Peca> modules = new List<Peca>();
             int numRows = 1;
 
             while(worksheet.Cells[row, 4].Value != null)
@@ -4297,6 +4511,9 @@ namespace OpenessTIA
             
         }
 
+        //Adiciona uma carta de PLC a partir de um código
+
+        //parametro     code: String com código da carta a adicionar
         public int addPlcModule(string code)
         {
             int numRows = 0 ;
@@ -4360,18 +4577,20 @@ namespace OpenessTIA
     }
 
 
-    public class Cilindro
+    public class Peca
     {
         public string name;
         public string station;
         public string nest;
+        public string type;
 
         //Construtor
-        public Cilindro(string nameString = "", string stationString = "", string nestString = "")
+        public Peca(string nameString = "", string stationString = "", string nestString = "", string typeString = "")
         {
             name = nameString;
             station = stationString;
             nest = nestString;
+            type = typeString;
         }
 
         #region Gets e Sets
@@ -4391,6 +4610,10 @@ namespace OpenessTIA
             return nest;
         }
 
+        public string getType()
+        {
+            return type;
+        }
 
         public void setName(string nameString)
         {
@@ -4406,12 +4629,12 @@ namespace OpenessTIA
         {
             nest = nestString;
         }
+
+        public void setType(string typeString)
+        {
+            type = typeString;
+        }
         #endregion
-
-       
-        
-
-
 
     }
 
